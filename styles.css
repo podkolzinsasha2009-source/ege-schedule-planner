@@ -433,6 +433,22 @@ main { position: relative; }
 .day-list { flex: 1; display: flex; flex-direction: column; gap: 6px; padding: 0 6px 8px; min-height: 40px; border-radius: 0 0 14px 14px; transition: background 0.2s; }
 .day-list.is-drop-target, .backlog-list.is-drop-target { background: var(--accent-soft); }
 
+/* Оплата: одна узкая полоса через все дни срока, её нельзя двигать или отмечать */
+.week-banners { display: grid; grid-template-columns: repeat(7, 200px); gap: 8px; margin-bottom: -2px; }
+.pay-banner {
+  display: flex; align-items: center; gap: 8px; min-width: 0; height: 26px; padding: 0 10px;
+  border-radius: 8px; border: 1px solid color-mix(in srgb, var(--general) 55%, transparent);
+  background: color-mix(in srgb, var(--general) 24%, var(--surface));
+  color: var(--text); font-size: 11px; font-weight: 700; white-space: nowrap; overflow: hidden;
+  cursor: default; user-select: none;
+}
+.pay-icon {
+  display: grid; place-items: center; flex: none; width: 16px; height: 16px; border-radius: 5px;
+  background: var(--general); color: #0b0b0d; font-size: 10px; font-weight: 800;
+}
+.pay-title { overflow: hidden; text-overflow: ellipsis; }
+.pay-range { flex: none; margin-left: auto; color: color-mix(in srgb, var(--text) 70%, transparent); font-weight: 600; }
+
 /* ------------------------------------------------------------------ плашки */
 
 /* Невыполненная плашка залита цветом предмета, выполненная — серая и тусклая.

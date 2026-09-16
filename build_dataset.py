@@ -188,7 +188,7 @@ def build_all_periods():
             create_item("p2_09_b1", "Пробник №2", "Биология", "bio", "mock"),
             create_item("p2_09_r1", "Разбор произведения №7", "«Портрет Дориана Грея»", "rus", "review"),
         ]},
-        "2026-10-10": {"dayName": "ЧТ", "dayNum": 10, "month": "сен", "items": [
+        "2026-09-10": {"dayName": "ЧТ", "dayNum": 10, "month": "сен", "items": [
             create_item("p2_10_pay", "ОПЛАТА СЛЕДУЮЩЕГО МЕСЯЦА", "С 8.09 ДО 14.09", "general", "payment"),
             create_item("p2_10_b1", "Практика №8", "Метаболизм №1", "bio", "practice", time="16:00", icon="clock"),
         ]},

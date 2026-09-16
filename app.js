@@ -175,6 +175,19 @@
     return items;
   }
 
+  // В исходных данных четверг 10 сентября был записан как 2026-10-10 и попадал в октябрь.
+  // Возвращаем такие плашки на место один раз для каждой комнаты.
+  function migrateSeptember10() {
+    const items = Store.get('items');
+    if (!items || Store.get('meta/fixSep10')) return;
+    const day = COURSE[dayIndex['2026-09-10']] && COURSE[dayIndex['2026-09-10']].days['2026-09-10'];
+    const updates = { 'meta/fixSep10': true };
+    toArray(day && day.items).forEach(it => {
+      if (items[it.id] && items[it.id].date === '2026-10-10') updates[`items/${it.id}/date`] = '2026-09-10';
+    });
+    Store.update(updates);
+  }
+
   // ------------------------------------------------------------------ отрисовка
 
   // Помечаем пары «занятие → его тест/ДЗ», стоящие подряд, чтобы соединить их полоской
@@ -226,6 +239,61 @@
     fallback = setTimeout(run, 120);
   }
 
+  const isPayment = (it) => it.category === 'payment';
+
+  function dateKeyOf(d) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
+  // Окна оплаты: плашки «Оплата следующего месяца» с одинаковым сроком «С 10.10 ДО 14.10»
+  // превращаются в одну полосу через все дни этого срока.
+  function paymentWindows(items) {
+    const groups = {};
+    items.filter(it => isPayment(it) && it.date && it.date !== 'backlog').forEach(it => {
+      const key = `${it.title}|${it.subtitle || ''}`;
+      (groups[key] = groups[key] || { title: it.title, subtitle: it.subtitle || '', dates: new Set() }).dates.add(it.date);
+    });
+    return Object.values(groups).map(g => {
+      const known = Array.from(g.dates).sort();
+      const m = g.subtitle.match(/(\d{1,2})\.(\d{1,2})\D+(\d{1,2})\.(\d{1,2})/);
+      if (m) {
+        const year = parseInt(known[0].slice(0, 4), 10);
+        const start = new Date(year, parseInt(m[2], 10) - 1, parseInt(m[1], 10));
+        const end = new Date(year, parseInt(m[4], 10) - 1, parseInt(m[3], 10));
+        if (end < start) end.setFullYear(year + 1);
+        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) g.dates.add(dateKeyOf(d));
+      }
+      return g;
+    });
+  }
+
+  function paymentLabel(text) {
+    const t = String(text || '').trim().toLowerCase();
+    return t.charAt(0).toUpperCase() + t.slice(1);
+  }
+
+  function weekBannersHtml(week, windows) {
+    if (ui.query || (ui.category !== 'all' && ui.category !== 'payment')) return '';
+    const bars = [];
+    windows.forEach(w => {
+      let start = -1;
+      for (let i = 0; i <= week.length; i++) {
+        const inside = i < week.length && w.dates.has(week[i]);
+        if (inside && start < 0) start = i;
+        if (!inside && start >= 0) {
+          bars.push(`
+            <div class="pay-banner" style="grid-column: ${start + 1} / ${i + 1}" title="${escapeHtml(paymentLabel(w.title))} ${escapeHtml(w.subtitle.toLowerCase())}">
+              <span class="pay-icon" aria-hidden="true">₽</span>
+              <span class="pay-title">${escapeHtml(paymentLabel(w.title))}</span>
+              <span class="pay-range">${escapeHtml(w.subtitle.toLowerCase())}</span>
+            </div>`);
+          start = -1;
+        }
+      }
+    });
+    return bars.length ? `<div class="week-banners">${bars.join('')}</div>` : '';
+  }
+
   function renderBoard() {
     const period = currentPeriod();
     const weeksEl = $('#weeks');
@@ -237,11 +305,13 @@
     const weeks = [];
     for (let i = 0; i < dates.length; i += 7) weeks.push(dates.slice(i, i + 7));
 
+    const windows = paymentWindows(allItems());
     weeksEl.innerHTML = weeks.map(week => `
+      ${weekBannersHtml(week, windows)}
       <div class="week">
         ${week.map(dateKey => {
           const day = period.days[dateKey];
-          const list = (byDate[dateKey] || []).filter(isVisible);
+          const list = (byDate[dateKey] || []).filter(it => !isPayment(it) && isVisible(it));
           const isToday = dateKey === todayKey();
           return `
             <section class="day${isToday ? ' is-today' : ''}${list.length ? '' : ' is-empty'}" data-date="${dateKey}">
@@ -1067,7 +1137,10 @@
     Store.subscribe(({ paths }) => {
       if (paths.includes('__status')) { renderSyncStatus(); return; }
       const roots = new Set(paths.map(p => p.split('/').filter(Boolean)[0] || '/'));
-      if (roots.has('/') || roots.has('items')) requestRender();
+      if (roots.has('/') || roots.has('items')) {
+        migrateSeptember10();
+        requestRender();
+      }
       if (roots.has('/') || roots.has('presence')) renderSyncStatus();
     });
 
