@@ -692,6 +692,8 @@ body {
   margin: 16px auto;
   padding: 0 24px;
   flex: 1;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .calendar-grid {
@@ -2095,6 +2097,167 @@ body {
   display: block;
 }
 
+/* Ползунок толщины пера и кнопка силы нажатия */
+.slider-wrapper {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 6px;
+  background: rgba(241, 245, 249, 0.7);
+  border-radius: 20px;
+  margin: 0 4px;
+}
+
+.stylus-range-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 75px;
+  height: 5px;
+  background: #cbd5e1;
+  border-radius: 9999px;
+  outline: none;
+  cursor: pointer;
+}
+
+.stylus-range-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--primary);
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  transition: transform 0.12s ease;
+}
+
+.stylus-range-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+.slider-val {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-main);
+  min-width: 24px;
+}
+
+.pressure-btn {
+  font-size: 0.76rem;
+  padding: 4px 9px;
+}
+
+.pressure-btn.active {
+  background: #e0e7ff;
+  color: #4338ca;
+  border-color: #c7d2fe;
+}
+
+.photo-btn {
+  font-size: 0.82rem;
+}
+
+/* ==========================================================================
+   СЛОЙ ИНТЕРАКТИВНЫХ ФОТОГРАФИЙ (МАСШТАБИРОВАНИЕ, РАСТЯЖЕНИЕ, ПЕРЕМЕЩЕНИЕ)
+   ========================================================================== */
+.placed-images-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 39;
+}
+
+.calendar-wrapper.drawing-mode .placed-images-layer {
+  pointer-events: auto;
+}
+
+.placed-image-item {
+  position: absolute;
+  pointer-events: auto;
+  user-select: none;
+  touch-action: none;
+  border: 2px dashed transparent;
+  border-radius: 8px;
+  cursor: move;
+  box-sizing: border-box;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.placed-image-item:hover,
+.placed-image-item.selected {
+  border-color: var(--primary);
+  box-shadow: 0 6px 20px rgba(79, 70, 229, 0.35);
+  z-index: 50;
+}
+
+.placed-image-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  display: block;
+  border-radius: 6px;
+  pointer-events: none;
+}
+
+.placed-image-delete {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  width: 24px;
+  height: 24px;
+  background: #ef4444;
+  color: white;
+  border: 2px solid white;
+  border-radius: 50%;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: bold;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  z-index: 12;
+  transition: transform 0.1s;
+}
+
+.placed-image-delete:hover {
+  transform: scale(1.15);
+  background: #dc2626;
+}
+
+.placed-image-item:hover .placed-image-delete,
+.placed-image-item.selected .placed-image-delete {
+  display: flex;
+}
+
+/* Маркеры изменения размера и растяжения по 4 углам */
+.resize-handle {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  background: #4f46e5;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  display: none;
+  z-index: 11;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.35);
+  touch-action: none;
+}
+
+.placed-image-item:hover .resize-handle,
+.placed-image-item.selected .resize-handle {
+  display: block;
+}
+
+.resize-handle.tl { top: -7px; left: -7px; cursor: nwse-resize; }
+.resize-handle.tr { top: -7px; right: -7px; cursor: nesw-resize; }
+.resize-handle.bl { bottom: -7px; left: -7px; cursor: nesw-resize; }
+.resize-handle.br { bottom: -7px; right: -7px; cursor: nwse-resize; }
+
 /* Индикатор статуса стилуса */
 .draw-mode-btn.active {
   background: linear-gradient(135deg, #10b981 0%, #059669 100%);
@@ -2645,6 +2808,24 @@ body.dark-mode .size-btn.active {
   border-color: #4338ca;
 }
 
+body.dark-mode .slider-wrapper {
+  background: rgba(30, 41, 59, 0.8);
+}
+
+body.dark-mode .stylus-range-slider {
+  background: #475569;
+}
+
+body.dark-mode .slider-val {
+  color: #e2e8f0;
+}
+
+body.dark-mode .pressure-btn.active {
+  background: #1e1b4b;
+  color: #c7d2fe;
+  border-color: #4338ca;
+}
+
 /* ==========================================================================
    ОПТИМИЗАЦИЯ ПОД ТЕЛЕФОНЫ (iOS SAFARI & ANDROID CHROME)
    Нижняя навигация, быстрый выбор дня, компактные карточки
@@ -2856,17 +3037,38 @@ body.dark-mode .mob-day-chip.active {
   }
 
   .main-content {
-    padding: 0 12px;
-    margin: 10px auto;
+    padding: 0 8px;
+    margin: 8px auto;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
+  .calendar-wrapper {
+    width: max-content;
+    min-width: 100%;
+  }
+
+  /* Полноценная неделя: 7 колонок бок о бок как на ПК */
   .calendar-week {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(148px, 1fr));
+    min-width: 1060px;
+    gap: 8px;
+  }
+
+  /* Альтернативный режим списка при явном переключении */
+  .calendar-wrapper.view-list {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .calendar-wrapper.view-list .calendar-week {
     grid-template-columns: 1fr;
-    gap: 12px;
+    min-width: 0;
   }
 
   .calendar-day-card {
-    min-height: auto;
+    min-height: 180px;
   }
 
   .day-dropzone {

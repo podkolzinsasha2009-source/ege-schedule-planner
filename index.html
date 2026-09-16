@@ -62,6 +62,9 @@
             <button id="theme-toggle-btn" class="dropdown-item" title="Переключить тему оформления (Светлая / Тёмная)">
               🌙 Тёмная тема
             </button>
+            <button id="week-view-toggle-btn" class="dropdown-item" title="Переключить отображение недели: Колонки (как на ПК) или Список">
+              📊 Вид недели: Колонки (ПК)
+            </button>
             <button id="menu-sync-btn" class="dropdown-item" title="Синхронизация между устройствами в реальном времени">
               🔗 Синхронизация устройств
             </button>
@@ -185,9 +188,22 @@
         <button id="tool-eraser" class="stylus-btn" data-tool="eraser" title="Ластик">
           🧹 <span class="btn-text">Ластик</span>
         </button>
+        <button id="tool-stroke-eraser" class="stylus-btn" data-tool="stroke-eraser" title="Ластик линий (GoodNotes): удаляет линию целиком при касании любого края">
+          ⚡ <span class="btn-text">Штрих-ластик</span>
+        </button>
         <button id="tool-pan" class="stylus-btn" data-tool="pan" title="Скролл / Перемещение по расписанию">
           ✋ <span class="btn-text">Скролл</span>
         </button>
+      </div>
+
+      <div class="toolbar-divider"></div>
+
+      <!-- Вставка фото из галереи / загрузок -->
+      <div class="tool-group insert-photo-group">
+        <button id="tool-insert-photo" class="stylus-btn photo-btn" title="Вставить фото из галереи или загрузок (можно свободно перемещать, растягивать и масштабировать)">
+          🖼️ <span class="btn-text">Фото</span>
+        </button>
+        <input type="file" id="stylus-photo-input" accept="image/*" style="display: none;">
       </div>
 
       <div class="toolbar-divider"></div>
@@ -218,7 +234,7 @@
 
       <div class="toolbar-divider"></div>
 
-      <!-- Толщина штриха -->
+      <!-- Толщина штриха, ползунок и нажим пера -->
       <div class="tool-group stroke-sizes">
         <button class="size-btn active" data-size="2" title="2px">
           <span class="size-preview" style="width: 3px; height: 3px;"></span>
@@ -231,6 +247,13 @@
         </button>
         <button class="size-btn" data-size="20" title="20px">
           <span class="size-preview" style="width: 16px; height: 16px;"></span>
+        </button>
+        <div class="slider-wrapper" title="Регулировка толщины штриха ползунком (1px — 40px)">
+          <input type="range" id="stylus-size-slider" min="1" max="40" value="2" class="stylus-range-slider" title="Толщина пера">
+          <span id="stylus-size-val" class="slider-val">2px</span>
+        </div>
+        <button id="stylus-pressure-btn" class="stylus-btn pressure-btn active" title="Степень нажатия стилуса (Apple Pencil / S-Pen): сильнее нажим — толще линия">
+          ✍️ <span class="btn-text">Нажим: <b id="pressure-status-text">Вкл</b></span>
         </button>
       </div>
 
@@ -256,6 +279,7 @@
     <button class="mob-day-chip" data-day="Пт">Пт</button>
     <button class="mob-day-chip" data-day="Сб">Сб</button>
     <button class="mob-day-chip" data-day="Вс">Вс</button>
+    <button id="mob-view-toggle-btn" class="mob-day-chip mob-view-btn" title="Переключить: Колонки (как на ПК) / Список">📊 Колонки</button>
   </div>
 
   <!-- ==========================================
@@ -266,6 +290,7 @@
       <div id="calendar-container" class="calendar-grid">
         <!-- Генерируется динамически через app.js -->
       </div>
+      <div id="placed-images-layer" class="placed-images-layer"></div>
       <canvas id="stylus-canvas" class="stylus-canvas"></canvas>
     </div>
   </main>

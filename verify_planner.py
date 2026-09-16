@@ -245,12 +245,12 @@ def test_zero_latency_and_redesign():
     assert "touch-action: none !important" in css, "styles.css missing strict touch-action: none !important"
     print("✓ styles.css dropdown menu, slim progress bar, accordion checklists, subject pills, and zero-delay touch-action verified.")
 
-    # 4. SW v8 verification
+    # 4. SW v9 verification
     sw_path = os.path.join(DIR, "sw.js")
     with open(sw_path, "r", encoding="utf-8") as f:
         sw = f.read()
-    assert "himbiorus-pwa-v8" in sw, "sw.js missing v8 cache name"
-    print("✓ sw.js v8 cache version verified.")
+    assert "himbiorus-pwa-v9" in sw, "sw.js missing v9 cache name"
+    print("✓ sw.js v9 cache version verified.")
 
 def test_realtime_synchronization():
     # 1. sync.js Engine Verification
@@ -276,6 +276,8 @@ def test_realtime_synchronization():
     assert "MOVE_ITEM" in sync_js and "STROKE_ADD" in sync_js, "sync.js missing event protocol"
     assert "STROKE_CHUNK" in sync_js and "STROKE_END" in sync_js, "sync.js missing real-time stroke streaming protocol"
     assert "UPDATE_ITEM" in sync_js, "sync.js missing UPDATE_ITEM protocol"
+    assert "STROKE_ERASE" in sync_js and "IMAGE_ADD" in sync_js, "sync.js missing stroke erase and image add protocol"
+    assert "IMAGE_UPDATE" in sync_js and "IMAGE_DELETE" in sync_js, "sync.js missing image update and delete protocol"
     assert "setupFirebaseSubscription" in sync_js, "sync.js missing setupFirebaseSubscription"
     assert "sendToFirebase" in sync_js, "sync.js missing sendToFirebase"
     print("✓ sync.js engine verified: Multi-broker WSS relay (EMQX + Mosquitto + HiveMQ), fast failover, BroadcastChannel, and MiniQR.")
@@ -340,8 +342,8 @@ def test_realtime_synchronization():
     with open(sw_path, "r", encoding="utf-8") as f:
         sw = f.read()
     assert "'./sync.js'" in sw or '"./sync.js"' in sw, "sw.js missing sync.js in ASSETS_TO_CACHE"
-    assert "himbiorus-pwa-v8" in sw, "sw.js missing v8 cache version"
-    print("✓ sw.js PWA v8 cache verified: sync.js cached for 100% offline capability.")
+    assert "himbiorus-pwa-v9" in sw, "sw.js missing v9 cache version"
+    print("✓ sw.js PWA v9 cache verified: sync.js cached for 100% offline capability.")
 
     # 6. Bit-Perfect MiniQR ISO/IEC 18004 Verification against Python qrcode
     import subprocess, json
@@ -441,6 +443,12 @@ def test_realtime_synchronization():
     let clientBReceivedUpdate = false;
     let clientBReceivedDelete = false;
     let clientBReceivedStroke = false;
+    let clientBReceivedChunk = false;
+    let clientBReceivedEnd = false;
+    let clientBReceivedStrokeErase = false;
+    let clientBReceivedImageAdd = false;
+    let clientBReceivedImageUpdate = false;
+    let clientBReceivedImageDelete = false;
 
     clientB.init({
       onMoveItem: (data) => {
@@ -482,11 +490,28 @@ def test_realtime_synchronization():
         if (data.strokeId === 'test_strk') {
           clientBReceivedEnd = true;
         }
+      },
+      onStrokeErase: (data) => {
+        if (data.periodIndex === 0 && data.strokeId === 'test_strk') {
+          clientBReceivedStrokeErase = true;
+        }
+      },
+      onImageAdd: (data) => {
+        if (data.periodIndex === 0 && data.image && data.image.id === 'img_1') {
+          clientBReceivedImageAdd = true;
+        }
+      },
+      onImageUpdate: (data) => {
+        if (data.periodIndex === 0 && data.image && data.image.id === 'img_1' && data.image.width === 200) {
+          clientBReceivedImageUpdate = true;
+        }
+      },
+      onImageDelete: (data) => {
+        if (data.periodIndex === 0 && data.imageId === 'img_1') {
+          clientBReceivedImageDelete = true;
+        }
       }
     });
-
-    let clientBReceivedChunk = false;
-    let clientBReceivedEnd = false;
 
     clientA.init({});
 
@@ -499,16 +524,25 @@ def test_realtime_synchronization():
     clientA.broadcastStrokeChunk({ strokeId: 'test_strk', periodIndex: 0, tool: 'pen', points: [[1, 2], [3, 4]] });
     clientA.broadcastStrokeEnd({ strokeId: 'test_strk', periodIndex: 0, points: [] });
     clientA.broadcastStroke({ periodIndex: 0, stroke: { tool: 'pen', points: [[1, 2], [3, 4]] } });
+    clientA.broadcastStrokeErase(0, 'test_strk');
+    clientA.broadcastImageAdd(0, { id: 'img_1', x: 10, y: 10, width: 100, height: 100 });
+    clientA.broadcastImageUpdate(0, { id: 'img_1', x: 20, y: 20, width: 200, height: 200 });
+    clientA.broadcastImageDelete(0, 'img_1');
 
     setTimeout(() => {
       const allPassed = clientBReceivedMove && clientBReceivedToggle && clientBReceivedAdd &&
                         clientBReceivedUpdate && clientBReceivedDelete && clientBReceivedStroke &&
-                        clientBReceivedChunk && clientBReceivedEnd;
+                        clientBReceivedChunk && clientBReceivedEnd && clientBReceivedStrokeErase &&
+                        clientBReceivedImageAdd && clientBReceivedImageUpdate && clientBReceivedImageDelete;
       if (allPassed) {
         console.log('SIMULATION_PASSED');
         process.exit(0);
       } else {
-        console.error('FAILED simulation check');
+        console.error('FAILED simulation check', {
+          clientBReceivedMove, clientBReceivedToggle, clientBReceivedAdd, clientBReceivedUpdate,
+          clientBReceivedDelete, clientBReceivedStroke, clientBReceivedChunk, clientBReceivedEnd,
+          clientBReceivedStrokeErase, clientBReceivedImageAdd, clientBReceivedImageUpdate, clientBReceivedImageDelete
+        });
         process.exit(1);
       }
     }, 50);
@@ -516,7 +550,7 @@ def test_realtime_synchronization():
 
     res = subprocess.run(["node", "-e", node_test_script], cwd=DIR, capture_output=True, text=True, timeout=10)
     assert "SIMULATION_PASSED" in res.stdout, f"Multi-device simulation failed: {res.stderr or res.stdout}"
-    print("✓ Multi-device simulation verified: zero-latency move, toggle, add, update, delete, and stroke confirmed.")
+    print("✓ Multi-device simulation verified: zero-latency move, toggle, add, update, delete, stroke, erase, and image sync confirmed.")
 
 def test_independent_homework_blocks():
     app_js_path = os.path.join(DIR, "app.js")
@@ -540,6 +574,70 @@ def test_independent_homework_blocks():
 
     print("✓ Independent blocks verified: homework and tests are unclustered and rendered as independent draggable blocks.")
 
+def test_new_stylus_mobile_and_photo_features():
+    html_path = os.path.join(DIR, "index.html")
+    with open(html_path, "r", encoding="utf-8") as f:
+        html = f.read()
+
+    css_path = os.path.join(DIR, "styles.css")
+    with open(css_path, "r", encoding="utf-8") as f:
+        css = f.read()
+
+    app_js_path = os.path.join(DIR, "app.js")
+    with open(app_js_path, "r", encoding="utf-8") as f:
+        app_js = f.read()
+
+    sync_js_path = os.path.join(DIR, "sync.js")
+    with open(sync_js_path, "r", encoding="utf-8") as f:
+        sync_js = f.read()
+
+    # 1. Full week columns on mobile & horizontal swipe/scroll
+    assert "repeat(7, minmax(148px, 1fr))" in css, "styles.css must default to 7 columns on mobile"
+    assert "min-width: 1060px" in css, "styles.css must have min-width: 1060px on mobile .calendar-week"
+    assert "overflow-x: auto" in css, "styles.css .main-content must support horizontal scrolling"
+    assert ".calendar-wrapper.view-list" in css, "styles.css must support list view fallback"
+    assert 'id="mob-view-toggle-btn"' in html, "index.html must have mobile view toggle button"
+    assert 'id="week-view-toggle-btn"' in html, "index.html must have week view toggle button in settings"
+    assert "toggleWeekViewMode" in app_js, "app.js must implement toggleWeekViewMode"
+    assert "applyWeekViewMode" in app_js, "app.js must implement applyWeekViewMode"
+
+    # 2. GoodNotes Whole Stroke Eraser
+    assert 'id="tool-stroke-eraser"' in html, "index.html missing #tool-stroke-eraser button"
+    assert "checkAndEraseStrokeAt" in app_js, "app.js missing checkAndEraseStrokeAt function"
+    assert "distToSegment" in app_js, "app.js missing distToSegment point-to-segment distance algorithm"
+    assert "vectorStrokes" in app_js, "app.js missing vectorStrokes store"
+    assert "broadcastStrokeErase" in sync_js, "sync.js missing broadcastStrokeErase method"
+    assert "STROKE_ERASE" in sync_js, "sync.js missing STROKE_ERASE protocol action"
+
+    # 3. Stylus Pressure Sensitivity & Smooth Size Slider
+    assert 'id="stylus-size-slider"' in html, "index.html missing stylus size slider"
+    assert 'id="stylus-pressure-btn"' in html, "index.html missing stylus pressure toggle button"
+    assert "pressureSensitivity" in app_js, "app.js missing pressureSensitivity flag"
+    assert "pNorm" in app_js, "app.js missing normalized pressure handling"
+    assert ".stylus-range-slider" in css, "styles.css missing .stylus-range-slider styles"
+    assert ".pressure-btn" in css, "styles.css missing .pressure-btn styles"
+
+    # 4. Placed Images / Photos with Resizing & Dragging
+    assert 'id="tool-insert-photo"' in html, "index.html missing #tool-insert-photo button"
+    assert 'id="stylus-photo-input"' in html, "index.html missing hidden photo file input"
+    assert 'id="placed-images-layer"' in html, "index.html missing placed images layer"
+    assert "setupPlacedImagesModule" in app_js, "app.js missing setupPlacedImagesModule"
+    assert "handleImageUpload" in app_js, "app.js missing handleImageUpload"
+    assert "renderPlacedImages" in app_js, "app.js missing renderPlacedImages"
+    assert "setupResizeHandleEvents" in app_js, "app.js missing setupResizeHandleEvents"
+    assert "deletePlacedImage" in app_js, "app.js missing deletePlacedImage"
+    assert ".placed-images-layer" in css, "styles.css missing .placed-images-layer"
+    assert ".placed-image-item" in css, "styles.css missing .placed-image-item"
+    assert ".resize-handle" in css, "styles.css missing .resize-handle"
+    assert "broadcastImageAdd" in sync_js, "sync.js missing broadcastImageAdd"
+    assert "broadcastImageUpdate" in sync_js, "sync.js missing broadcastImageUpdate"
+    assert "broadcastImageDelete" in sync_js, "sync.js missing broadcastImageDelete"
+    assert "IMAGE_ADD" in sync_js, "sync.js missing IMAGE_ADD message handler"
+    assert "IMAGE_UPDATE" in sync_js, "sync.js missing IMAGE_UPDATE message handler"
+    assert "IMAGE_DELETE" in sync_js, "sync.js missing IMAGE_DELETE message handler"
+
+    print("✓ Full week mobile columns, GoodNotes stroke eraser, pressure sensitivity, and placed images verified.")
+
 if __name__ == "__main__":
     test_files_exist()
     test_schedule_data()
@@ -549,6 +647,8 @@ if __name__ == "__main__":
     test_zero_latency_and_redesign()
     test_realtime_synchronization()
     test_independent_homework_blocks()
-    print("\n🎉 ALL VERIFICATION TESTS (DATA + ADVANCED STYLUS + DARK MODE + MOBILE + PWA + REDESIGN + GESTURES + DEEP ROBUSTNESS + REALTIME SYNC + INDEPENDENT BLOCKS) PASSED SUCCESSFULLY!")
+    test_new_stylus_mobile_and_photo_features()
+    print("\n🎉 ALL VERIFICATION TESTS (DATA + ADVANCED STYLUS + DARK MODE + MOBILE + PWA + REDESIGN + GESTURES + DEEP ROBUSTNESS + REALTIME SYNC + INDEPENDENT BLOCKS + MOBILE COLUMNS + STROKE ERASER + PRESSURE + PHOTOS) PASSED SUCCESSFULLY!")
+
 
 

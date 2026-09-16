@@ -89,6 +89,7 @@
   function initApp() {
     loadState();
     initTheme();
+    initWeekViewMode();
     setupEventListeners();
     renderPeriodsNav();
     renderControls();
@@ -96,6 +97,7 @@
     renderBacklog();
     updateProgress();
     setupGoodNotesStylus();
+    setupPlacedImagesModule();
     setupMobileNavigation();
     setupRealtimeSync();
   }
@@ -186,6 +188,7 @@
     saveState();
     renderPeriodsNav();
     renderCalendar();
+    loadPlacedImagesForPeriod(state.periods[idx].id);
     if (window.GoodNotesStylus) {
       setTimeout(() => {
         window.GoodNotesStylus.resizeAndLoad();
@@ -1548,9 +1551,146 @@
       startPoints: new Map()
     };
 
+    let vectorStrokes = [];
+    let undoVectorStack = [];
+    let redoVectorStack = [];
+    let pressureSensitivity = true;
+
     function getPeriodKey() {
       const p = state.periods[state.currentPeriodIndex];
       return p ? `himbiorus_notes_${p.id}` : 'himbiorus_notes_default';
+    }
+
+    function getVectorKey() {
+      const p = state.periods[state.currentPeriodIndex];
+      return p ? `himbiorus_vector_strokes_${p.id}` : 'himbiorus_vector_strokes_default';
+    }
+
+    function saveVectorStrokes() {
+      try {
+        localStorage.setItem(getVectorKey(), JSON.stringify(vectorStrokes));
+      } catch (e) {}
+    }
+
+    function loadVectorStrokes() {
+      try {
+        const saved = localStorage.getItem(getVectorKey());
+        vectorStrokes = saved ? JSON.parse(saved) : [];
+      } catch (e) {
+        vectorStrokes = [];
+      }
+    }
+
+    function distToSegment(px, py, x1, y1, x2, y2) {
+      const dx = x2 - x1;
+      const dy = y2 - y1;
+      const lenSq = dx * dx + dy * dy;
+      if (lenSq === 0) return Math.hypot(px - x1, py - y1);
+      let t = ((px - x1) * dx + (py - y1) * dy) / lenSq;
+      t = Math.max(0, Math.min(1, t));
+      return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
+    }
+
+    function renderSingleVectorStroke(st, targetCtx = ctx) {
+      if (!st || !st.points || st.points.length === 0) return;
+      const pts = st.points;
+      const prevTool = currentTool;
+      const prevColor = currentColor;
+      const prevSize = currentSize;
+
+      currentTool = st.tool || 'pen';
+      currentColor = st.color || '#10b981';
+      currentSize = st.size || 3;
+
+      let lx = pts[0][0], ly = pts[0][1], lp = pts[0][2] || 0.5;
+      let lmx = lx, lmy = ly;
+
+      applyToolStyles(lp, targetCtx);
+      targetCtx.beginPath();
+      targetCtx.arc(lx, ly, (targetCtx.lineWidth || currentSize) / 2, 0, Math.PI * 2);
+      targetCtx.fillStyle = targetCtx.strokeStyle;
+      targetCtx.fill();
+
+      for (let i = 1; i < pts.length; i++) {
+        const x = pts[i][0], y = pts[i][1], p = pts[i][2] || 0.5;
+        const mx = (lx + x) / 2;
+        const my = (ly + y) / 2;
+        applyToolStyles(p, targetCtx);
+        targetCtx.beginPath();
+        targetCtx.moveTo(lmx, lmy);
+        targetCtx.quadraticCurveTo(lx, ly, mx, my);
+        targetCtx.stroke();
+        lmx = mx; lmy = my;
+        lx = x; ly = y;
+      }
+      if (pts.length > 1) {
+        targetCtx.beginPath();
+        targetCtx.moveTo(lmx, lmy);
+        targetCtx.lineTo(lx, ly);
+        targetCtx.stroke();
+      }
+
+      currentTool = prevTool;
+      currentColor = prevColor;
+      currentSize = prevSize;
+    }
+
+    function redrawAllVectorStrokes() {
+      clearCanvasOnly();
+      vectorStrokes.forEach(st => {
+        renderSingleVectorStroke(st, ctx);
+      });
+      debouncedSaveDrawing();
+    }
+
+    function checkAndEraseStrokeAt(x, y) {
+      if (!vectorStrokes || vectorStrokes.length === 0) return false;
+      const hitRadius = Math.max(currentSize * 3, 16);
+      let erasedAny = false;
+      const hitIds = new Set();
+
+      for (let sIdx = vectorStrokes.length - 1; sIdx >= 0; sIdx--) {
+        const st = vectorStrokes[sIdx];
+        if (!st.points || st.points.length === 0) continue;
+        const pts = st.points;
+        const threshold = hitRadius + (st.size || 2) / 2;
+
+        let hit = false;
+        if (pts.length === 1) {
+          if (Math.hypot(x - pts[0][0], y - pts[0][1]) <= threshold) {
+            hit = true;
+          }
+        } else {
+          for (let i = 0; i < pts.length - 1; i++) {
+            const d = distToSegment(x, y, pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1]);
+            if (d <= threshold) {
+              hit = true;
+              break;
+            }
+          }
+        }
+
+        if (hit) {
+          hitIds.add(st.id);
+          erasedAny = true;
+        }
+      }
+
+      if (erasedAny) {
+        saveUndo();
+        vectorStrokes = vectorStrokes.filter(s => !hitIds.has(s.id));
+        saveVectorStrokes();
+        redrawAllVectorStrokes();
+        showGestureToast('⚡ Линия стёрта');
+        if (window.SyncEngine && typeof window.SyncEngine.broadcastStrokeErase === 'function') {
+          window.SyncEngine.broadcastStrokeErase({
+            strokeIds: Array.from(hitIds),
+            periodIndex: state.currentPeriodIndex
+          });
+        }
+        return true;
+      }
+      return false;
     }
 
     function hexToRgba(hex, alpha) {
@@ -1607,8 +1747,9 @@
 
     function resizeCanvas(preserveContent = true) {
       if (!canvas || !wrapper) return;
-      const displayWidth = wrapper.offsetWidth;
-      const displayHeight = wrapper.offsetHeight;
+      const containerEl = document.getElementById('calendar-container');
+      const displayWidth = Math.max(wrapper.offsetWidth, wrapper.scrollWidth, containerEl ? containerEl.scrollWidth : 0);
+      const displayHeight = Math.max(wrapper.offsetHeight, wrapper.scrollHeight, containerEl ? containerEl.scrollHeight : 0);
       if (displayWidth === 0 || displayHeight === 0) return;
 
       const dpr = window.devicePixelRatio || 1;
@@ -1687,6 +1828,7 @@
       if (!canvas || !ctx) return;
       const key = getPeriodKey();
       const saved = localStorage.getItem(key);
+      loadVectorStrokes();
       clearCanvasOnly();
       clearRedo();
       while (undoStack.length > 0) {
@@ -1694,7 +1836,12 @@
         d.width = 0;
         d.height = 0;
       }
-      if (saved) {
+      undoVectorStack = [];
+      redoVectorStack = [];
+
+      if (vectorStrokes.length > 0) {
+        redrawAllVectorStrokes();
+      } else if (saved) {
         const img = new Image();
         img.onload = () => {
           ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -1715,6 +1862,8 @@
           discarded.height = 0;
         }
         undoStack.push(snap);
+        undoVectorStack.push(JSON.parse(JSON.stringify(vectorStrokes)));
+        if (undoVectorStack.length > MAX_UNDO) undoVectorStack.shift();
         clearRedo();
       }
     }
@@ -1730,6 +1879,11 @@
           discarded.height = 0;
         }
         redoStack.push(currentSnap);
+        redoVectorStack.push(JSON.parse(JSON.stringify(vectorStrokes)));
+      }
+      if (undoVectorStack.length > 0) {
+        vectorStrokes = undoVectorStack.pop();
+        saveVectorStrokes();
       }
       restoreSnapshot(prev);
       debouncedSaveDrawing();
@@ -1751,6 +1905,11 @@
           discarded.height = 0;
         }
         undoStack.push(currentSnap);
+        undoVectorStack.push(JSON.parse(JSON.stringify(vectorStrokes)));
+      }
+      if (redoVectorStack.length > 0) {
+        vectorStrokes = redoVectorStack.pop();
+        saveVectorStrokes();
       }
       restoreSnapshot(next);
       debouncedSaveDrawing();
@@ -1760,6 +1919,7 @@
     function updateToolCursor() {
       if (!canvas) return;
       canvas.classList.toggle('pan-active', currentTool === 'pan');
+      canvas.classList.toggle('stroke-eraser-active', currentTool === 'stroke-eraser');
     }
 
     function setDrawingMode(active) {
@@ -1788,28 +1948,32 @@
       setDrawingMode(!isDrawingMode);
     }
 
-    function applyToolStyles(pressure = 0.5) {
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
+    function applyToolStyles(pressure = 0.5, targetCtx = ctx) {
+      targetCtx.lineCap = 'round';
+      targetCtx.lineJoin = 'round';
 
       let width = currentSize;
-      if (pressure && pressure > 0) {
+      if (pressureSensitivity && pressure !== undefined && pressure > 0) {
+        // Динамическая чувствительность Apple Pencil / S-Pen к нажиму (0.3x - 2.2x)
+        const pNorm = Math.max(0.05, Math.min(1.0, pressure));
+        width = currentSize * (0.28 + 1.84 * pNorm);
+      } else if (pressure && pressure > 0) {
         width = currentSize * (0.6 + 0.8 * pressure);
       }
 
       const isDark = document.body.classList.contains('dark-mode');
 
       if (currentTool === 'pen') {
-        ctx.globalCompositeOperation = 'source-over';
-        ctx.strokeStyle = currentColor;
-        ctx.lineWidth = width;
+        targetCtx.globalCompositeOperation = 'source-over';
+        targetCtx.strokeStyle = currentColor;
+        targetCtx.lineWidth = width;
       } else if (currentTool === 'highlighter') {
-        ctx.globalCompositeOperation = isDark ? 'screen' : 'multiply';
-        ctx.strokeStyle = currentColor.startsWith('rgba') ? currentColor : hexToRgba(currentColor, isDark ? 0.65 : 0.45);
-        ctx.lineWidth = Math.max(width * 3.5, 18);
-      } else if (currentTool === 'eraser') {
-        ctx.globalCompositeOperation = 'destination-out';
-        ctx.lineWidth = Math.max(width * 5, 24);
+        targetCtx.globalCompositeOperation = isDark ? 'screen' : 'multiply';
+        targetCtx.strokeStyle = currentColor.startsWith('rgba') ? currentColor : hexToRgba(currentColor, isDark ? 0.65 : 0.45);
+        targetCtx.lineWidth = Math.max(width * 3.5, 18);
+      } else if (currentTool === 'eraser' || currentTool === 'stroke-eraser') {
+        targetCtx.globalCompositeOperation = 'destination-out';
+        targetCtx.lineWidth = Math.max(width * 5, 24);
       }
     }
 
@@ -1957,6 +2121,16 @@
         return;
       }
 
+      if (currentTool === 'stroke-eraser') {
+        e.preventDefault();
+        try { canvas.setPointerCapture(e.pointerId); } catch(err) {}
+        const coords = getCanvasCoords(e);
+        isDrawing = true;
+        hasMoved = false;
+        checkAndEraseStrokeAt(coords.x, coords.y);
+        return;
+      }
+
       e.preventDefault();
       try { canvas.setPointerCapture(e.pointerId); } catch(err) {}
 
@@ -2032,6 +2206,17 @@
 
       e.preventDefault();
 
+      if (currentTool === 'stroke-eraser') {
+        const coalesced = (typeof e.getCoalescedEvents === 'function') ? e.getCoalescedEvents() : null;
+        const events = (coalesced && coalesced.length > 0) ? coalesced : [e];
+        for (let i = 0; i < events.length; i++) {
+          const ev = events[i];
+          const coords = getCanvasCoords(ev);
+          checkAndEraseStrokeAt(coords.x, coords.y);
+        }
+        return;
+      }
+
       // Zero-latency рендеринг через getCoalescedEvents для 120/240Hz стилусов
       const coalesced = (typeof e.getCoalescedEvents === 'function') ? e.getCoalescedEvents() : null;
       const events = (coalesced && coalesced.length > 0) ? coalesced : [e];
@@ -2095,6 +2280,13 @@
       if (isPanning) {
         isPanning = false;
       }
+
+      if (currentTool === 'stroke-eraser') {
+        isDrawing = false;
+        try { canvas.releasePointerCapture(e.pointerId); } catch(err) {}
+        return;
+      }
+
       if (!isDrawing) return;
       isDrawing = false;
 
@@ -2119,6 +2311,20 @@
         currentStrokeBeforeSnap.width = 0;
         currentStrokeBeforeSnap.height = 0;
         currentStrokeBeforeSnap = null;
+      }
+
+      if (didDrawInStroke && currentStrokePoints.length > 0) {
+        if (currentTool === 'pen' || currentTool === 'highlighter') {
+          const finishedStroke = {
+            id: currentStrokeId || ('strk_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7)),
+            tool: currentTool,
+            color: currentColor,
+            size: currentSize,
+            points: currentStrokePoints.slice()
+          };
+          vectorStrokes.push(finishedStroke);
+          saveVectorStrokes();
+        }
       }
 
       if (didDrawInStroke && currentStrokePoints.length > 0 && window.SyncEngine) {
@@ -2217,13 +2423,36 @@
       document.querySelectorAll('.color-palette .color-dot').forEach(d => d.classList.remove('active'));
     });
 
-    // Выбор толщины
+    // Выбор толщины и ползунок
+    const sizeSlider = document.getElementById('stylus-size-slider');
+    const sizeValEl = document.getElementById('stylus-size-val');
+
     document.querySelectorAll('.stroke-sizes .size-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('.stroke-sizes .size-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         currentSize = parseInt(btn.getAttribute('data-size') || '3', 10);
+        if (sizeSlider) sizeSlider.value = currentSize;
+        if (sizeValEl) sizeValEl.textContent = currentSize + 'px';
       });
+    });
+
+    sizeSlider?.addEventListener('input', (e) => {
+      currentSize = parseInt(e.target.value, 10);
+      if (sizeValEl) sizeValEl.textContent = currentSize + 'px';
+      document.querySelectorAll('.stroke-sizes .size-btn').forEach(btn => {
+        btn.classList.toggle('active', parseInt(btn.getAttribute('data-size') || '0', 10) === currentSize);
+      });
+    });
+
+    // Регулировка степени нажатия пера
+    const pressureBtn = document.getElementById('stylus-pressure-btn');
+    const pressureText = document.getElementById('pressure-status-text');
+    pressureBtn?.addEventListener('click', () => {
+      pressureSensitivity = !pressureSensitivity;
+      pressureBtn.classList.toggle('active', pressureSensitivity);
+      if (pressureText) pressureText.textContent = pressureSensitivity ? 'Вкл' : 'Выкл';
+      showGestureToast(pressureSensitivity ? '✍️ Нажим пера: Включен' : '✍️ Нажим пера: Выключен');
     });
 
     // Undo & Redo & Clear
@@ -2233,7 +2462,10 @@
       if (confirm('Очистить рукописные заметки для этого периода?')) {
         saveUndo();
         clearCanvasOnly();
+        vectorStrokes = [];
+        saveVectorStrokes();
         localStorage.removeItem(getPeriodKey());
+        localStorage.removeItem(getVectorKey());
         if (window.SyncEngine) {
           window.SyncEngine.broadcastClear({ periodIndex: state.currentPeriodIndex });
         }
@@ -2396,6 +2628,11 @@
         currentColor = prevColor;
         currentSize = prevSize;
 
+        if (!vectorStrokes.some(s => s.id === stroke.strokeId)) {
+          vectorStrokes.push(stroke);
+          saveVectorStrokes();
+        }
+
         debouncedSaveDrawing();
       } else {
         updateOffscreenPeriodDrawing(periodIndex, stroke);
@@ -2537,12 +2774,25 @@
           } else {
             saveUndo();
             clearCanvasOnly();
+            vectorStrokes = [];
+            saveVectorStrokes();
             localStorage.removeItem(getPeriodKey());
+            localStorage.removeItem(getVectorKey());
           }
         } else {
           const p = state.periods[periodIndex];
-          if (p) localStorage.removeItem(`himbiorus_notes_${p.id}`);
+          if (p) {
+            localStorage.removeItem(`himbiorus_notes_${p.id}`);
+            localStorage.removeItem(`himbiorus_vector_strokes_${p.id}`);
+          }
         }
+      },
+      remoteEraseStrokes: (strokeIds) => {
+        if (!Array.isArray(strokeIds) || strokeIds.length === 0) return;
+        const set = new Set(strokeIds);
+        vectorStrokes = vectorStrokes.filter(s => !set.has(s.id));
+        saveVectorStrokes();
+        redrawAllVectorStrokes();
       },
       getDrawingsBackup: () => {
         const drawings = {};
@@ -2562,6 +2812,26 @@
           }
         });
         loadDrawing();
+      },
+      getVectorStrokesBackup: () => {
+        const backup = {};
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith('himbiorus_vector_strokes_')) {
+            backup[key] = localStorage.getItem(key);
+          }
+        }
+        return backup;
+      },
+      restoreVectorStrokesBackup: (backup) => {
+        if (!backup) return;
+        Object.entries(backup).forEach(([k, v]) => {
+          if (k.startsWith('himbiorus_vector_strokes_') && v) {
+            localStorage.setItem(k, v);
+          }
+        });
+        loadVectorStrokes();
+        redrawAllVectorStrokes();
       }
     };
     window.GoodNotesStylus = stylusModule;
@@ -2571,6 +2841,367 @@
       resizeCanvas(false);
       loadDrawing();
     }, 100);
+  }
+
+  // ==========================================================================
+  // РЕЖИМ ОТОБРАЖЕНИЯ НЕДЕЛИ (КОЛОНКИ КАК НА ПК / СПИСОК)
+  // ==========================================================================
+  let weekViewMode = localStorage.getItem('himbiorus_week_view') || 'columns';
+
+  function initWeekViewMode() {
+    applyWeekViewMode(weekViewMode);
+    document.getElementById('week-view-toggle-btn')?.addEventListener('click', toggleWeekViewMode);
+  }
+
+  function toggleWeekViewMode() {
+    const next = weekViewMode === 'columns' ? 'list' : 'columns';
+    applyWeekViewMode(next);
+    showGestureToast(next === 'columns' ? '📊 Вид недели: Колонки (как на ПК)' : '📋 Вид недели: Список');
+  }
+
+  function applyWeekViewMode(mode) {
+    weekViewMode = mode || 'columns';
+    localStorage.setItem('himbiorus_week_view', weekViewMode);
+    const wrapper = document.getElementById('calendar-wrapper');
+    if (wrapper) {
+      wrapper.classList.toggle('view-list', weekViewMode === 'list');
+    }
+    const dropBtn = document.getElementById('week-view-toggle-btn');
+    if (dropBtn) {
+      dropBtn.textContent = weekViewMode === 'columns' ? '📊 Вид недели: Колонки (ПК)' : '📋 Вид недели: Список';
+    }
+    const mobBtn = document.getElementById('mob-view-toggle-btn');
+    if (mobBtn) {
+      mobBtn.textContent = weekViewMode === 'columns' ? '📊 Колонки' : '📋 Список';
+    }
+    if (window.GoodNotesStylus) {
+      setTimeout(() => window.GoodNotesStylus.resizeAndLoad(), 60);
+    }
+  }
+
+  // ==========================================================================
+  // МОДУЛЬ ИНТЕРАКТИВНЫХ ФОТОГРАФИЙ (ВСТАВКА, МАСШТАБИРОВАНИЕ, РАСТЯЖЕНИЕ, СИНХРОНИЗАЦИЯ)
+  // ==========================================================================
+  let placedImages = {}; // periodId -> array of images
+
+  function getImagesKey(periodId) {
+    return `himbiorus_images_${periodId || (state.periods[state.currentPeriodIndex]?.id || 'default')}`;
+  }
+
+  function loadPlacedImagesForPeriod(periodId) {
+    const pId = periodId || (state.periods[state.currentPeriodIndex]?.id || 'default');
+    try {
+      const raw = localStorage.getItem(getImagesKey(pId));
+      placedImages[pId] = raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      placedImages[pId] = [];
+    }
+    renderPlacedImages(pId);
+  }
+
+  function savePlacedImagesForPeriod(periodId) {
+    const pId = periodId || (state.periods[state.currentPeriodIndex]?.id || 'default');
+    try {
+      localStorage.setItem(getImagesKey(pId), JSON.stringify(placedImages[pId] || []));
+    } catch (e) {
+      console.warn('Не удалось сохранить фото:', e);
+    }
+  }
+
+  function getAllPlacedImagesBackup() {
+    const backup = {};
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('himbiorus_images_')) {
+        backup[k] = localStorage.getItem(k);
+      }
+    }
+    return backup;
+  }
+
+  function restoreAllPlacedImagesBackup(backup) {
+    if (!backup) return;
+    Object.entries(backup).forEach(([k, v]) => {
+      if (k.startsWith('himbiorus_images_') && v) {
+        localStorage.setItem(k, v);
+      }
+    });
+    const curPid = state.periods[state.currentPeriodIndex]?.id;
+    loadPlacedImagesForPeriod(curPid);
+  }
+
+  function renderPlacedImages(periodId) {
+    const pId = periodId || (state.periods[state.currentPeriodIndex]?.id || 'default');
+    const layer = document.getElementById('placed-images-layer');
+    if (!layer) return;
+    layer.innerHTML = '';
+
+    const list = placedImages[pId] || [];
+    list.forEach(imgObj => {
+      const el = createPlacedImageElement(imgObj, pId);
+      layer.appendChild(el);
+    });
+  }
+
+  function createPlacedImageElement(imgObj, periodId) {
+    const container = document.createElement('div');
+    container.className = 'placed-image-item';
+    container.setAttribute('data-id', imgObj.id);
+    container.style.left = imgObj.x + 'px';
+    container.style.top = imgObj.y + 'px';
+    container.style.width = imgObj.width + 'px';
+    container.style.height = imgObj.height + 'px';
+
+    const img = document.createElement('img');
+    img.src = imgObj.src;
+    img.alt = 'Фото расписания';
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'placed-image-delete';
+    delBtn.title = 'Удалить фото';
+    delBtn.textContent = '✕';
+    delBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      deletePlacedImage(imgObj.id, periodId);
+    });
+
+    container.appendChild(img);
+    container.appendChild(delBtn);
+
+    // 4 маркера изменения размера и свободного растяжения
+    ['tl', 'tr', 'bl', 'br'].forEach(handleType => {
+      const h = document.createElement('div');
+      h.className = `resize-handle ${handleType}`;
+      h.setAttribute('data-handle', handleType);
+      setupResizeHandleEvents(h, container, imgObj, handleType, periodId);
+      container.appendChild(h);
+    });
+
+    setupImageDragEvents(container, imgObj, periodId);
+
+    return container;
+  }
+
+  function setupImageDragEvents(container, imgObj, periodId) {
+    let isDragging = false;
+    let startX = 0;
+    let startY = 0;
+    let initialLeft = 0;
+    let initialTop = 0;
+
+    container.addEventListener('pointerdown', (e) => {
+      if (e.target.classList.contains('resize-handle') || e.target.classList.contains('placed-image-delete')) {
+        return;
+      }
+      e.stopPropagation();
+      try { container.setPointerCapture(e.pointerId); } catch(err) {}
+      isDragging = true;
+      startX = e.clientX;
+      startY = e.clientY;
+      initialLeft = imgObj.x;
+      initialTop = imgObj.y;
+      document.querySelectorAll('.placed-image-item').forEach(i => i.classList.remove('selected'));
+      container.classList.add('selected');
+    });
+
+    container.addEventListener('pointermove', (e) => {
+      if (!isDragging) return;
+      e.stopPropagation();
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      imgObj.x = Math.max(0, initialLeft + dx);
+      imgObj.y = Math.max(0, initialTop + dy);
+      container.style.left = imgObj.x + 'px';
+      container.style.top = imgObj.y + 'px';
+    });
+
+    const finishDrag = (e) => {
+      if (!isDragging) return;
+      isDragging = false;
+      try { container.releasePointerCapture(e.pointerId); } catch(err) {}
+      savePlacedImagesForPeriod(periodId);
+      if (window.SyncEngine && typeof window.SyncEngine.broadcastImageUpdate === 'function') {
+        window.SyncEngine.broadcastImageUpdate({
+          periodId: periodId,
+          image: { id: imgObj.id, x: imgObj.x, y: imgObj.y, width: imgObj.width, height: imgObj.height }
+        });
+      }
+    };
+
+    container.addEventListener('pointerup', finishDrag);
+    container.addEventListener('pointercancel', finishDrag);
+  }
+
+  function setupResizeHandleEvents(handle, container, imgObj, handleType, periodId) {
+    let isResizing = false;
+    let startX = 0;
+    let startY = 0;
+    let initialW = 0;
+    let initialH = 0;
+    let initialLeft = 0;
+    let initialTop = 0;
+
+    handle.addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      try { handle.setPointerCapture(e.pointerId); } catch(err) {}
+      isResizing = true;
+      startX = e.clientX;
+      startY = e.clientY;
+      initialW = imgObj.width;
+      initialH = imgObj.height;
+      initialLeft = imgObj.x;
+      initialTop = imgObj.y;
+      container.classList.add('selected');
+    });
+
+    handle.addEventListener('pointermove', (e) => {
+      if (!isResizing) return;
+      e.stopPropagation();
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+
+      if (handleType === 'br') {
+        imgObj.width = Math.max(60, initialW + dx);
+        imgObj.height = Math.max(40, initialH + dy);
+      } else if (handleType === 'bl') {
+        const newW = Math.max(60, initialW - dx);
+        imgObj.x = initialLeft + (initialW - newW);
+        imgObj.width = newW;
+        imgObj.height = Math.max(40, initialH + dy);
+        container.style.left = imgObj.x + 'px';
+      } else if (handleType === 'tr') {
+        const newH = Math.max(40, initialH - dy);
+        imgObj.y = initialTop + (initialH - newH);
+        imgObj.width = Math.max(60, initialW + dx);
+        imgObj.height = newH;
+        container.style.top = imgObj.y + 'px';
+      } else if (handleType === 'tl') {
+        const newW = Math.max(60, initialW - dx);
+        const newH = Math.max(40, initialH - dy);
+        imgObj.x = initialLeft + (initialW - newW);
+        imgObj.y = initialTop + (initialH - newH);
+        imgObj.width = newW;
+        imgObj.height = newH;
+        container.style.left = imgObj.x + 'px';
+        container.style.top = imgObj.y + 'px';
+      }
+
+      container.style.width = imgObj.width + 'px';
+      container.style.height = imgObj.height + 'px';
+    });
+
+    const finishResize = (e) => {
+      if (!isResizing) return;
+      isResizing = false;
+      try { handle.releasePointerCapture(e.pointerId); } catch(err) {}
+      savePlacedImagesForPeriod(periodId);
+      if (window.SyncEngine && typeof window.SyncEngine.broadcastImageUpdate === 'function') {
+        window.SyncEngine.broadcastImageUpdate({
+          periodId: periodId,
+          image: { id: imgObj.id, x: imgObj.x, y: imgObj.y, width: imgObj.width, height: imgObj.height }
+        });
+      }
+    };
+
+    handle.addEventListener('pointerup', finishResize);
+    handle.addEventListener('pointercancel', finishResize);
+  }
+
+  function handleImageUpload(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const rawUrl = e.target.result;
+      const img = new Image();
+      img.onload = () => {
+        const maxDim = 1200;
+        let w = img.naturalWidth || 400;
+        let h = img.naturalHeight || 300;
+        if (w > maxDim || h > maxDim) {
+          if (w > h) {
+            h = Math.round(h * (maxDim / w));
+            w = maxDim;
+          } else {
+            w = Math.round(w * (maxDim / h));
+            h = maxDim;
+          }
+        }
+        const compressCanvas = document.createElement('canvas');
+        compressCanvas.width = w;
+        compressCanvas.height = h;
+        const cCtx = compressCanvas.getContext('2d');
+        cCtx.drawImage(img, 0, 0, w, h);
+        const compressedDataUrl = compressCanvas.toDataURL('image/jpeg', 0.82);
+        compressCanvas.width = 0;
+        compressCanvas.height = 0;
+
+        const pId = state.periods[state.currentPeriodIndex]?.id || 'default';
+        const mainContent = document.querySelector('.main-content');
+        const scrollLeft = mainContent ? mainContent.scrollLeft : 0;
+        const scrollTop = window.scrollY || 0;
+
+        const displayW = Math.min(260, w);
+        const displayH = Math.round(displayW * (h / w));
+
+        const newImageObj = {
+          id: 'img_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7),
+          src: compressedDataUrl,
+          x: Math.max(30, scrollLeft + 40),
+          y: Math.max(30, Math.min(scrollTop + 60, 400)),
+          width: displayW,
+          height: displayH
+        };
+
+        if (!placedImages[pId]) placedImages[pId] = [];
+        placedImages[pId].push(newImageObj);
+        savePlacedImagesForPeriod(pId);
+        renderPlacedImages(pId);
+
+        showGestureToast('🖼️ Фото добавлено в расписание');
+
+        if (window.SyncEngine && typeof window.SyncEngine.broadcastImageAdd === 'function') {
+          window.SyncEngine.broadcastImageAdd({
+            periodId: pId,
+            image: newImageObj
+          });
+        }
+      };
+      img.src = rawUrl;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function deletePlacedImage(imageId, periodId) {
+    const pId = periodId || (state.periods[state.currentPeriodIndex]?.id || 'default');
+    if (!placedImages[pId]) return;
+    placedImages[pId] = placedImages[pId].filter(im => im.id !== imageId);
+    savePlacedImagesForPeriod(pId);
+    renderPlacedImages(pId);
+    showGestureToast('🗑️ Фото удалено');
+
+    if (window.SyncEngine && typeof window.SyncEngine.broadcastImageDelete === 'function') {
+      window.SyncEngine.broadcastImageDelete({
+        periodId: pId,
+        imageId: imageId
+      });
+    }
+  }
+
+  function setupPlacedImagesModule() {
+    const curPid = state.periods[state.currentPeriodIndex]?.id;
+    loadPlacedImagesForPeriod(curPid);
+
+    const insertPhotoBtn = document.getElementById('tool-insert-photo');
+    const photoFileInput = document.getElementById('stylus-photo-input');
+    insertPhotoBtn?.addEventListener('click', () => {
+      photoFileInput?.click();
+    });
+    photoFileInput?.addEventListener('change', (e) => {
+      if (e.target.files && e.target.files[0]) {
+        handleImageUpload(e.target.files[0]);
+        photoFileInput.value = '';
+      }
+    });
   }
 
   // ==========================================================================
@@ -2601,7 +3232,7 @@
     });
 
     // 2. Мобильный быстрый селектор дня (Все дни, Пн, Вт, Ср, Чт, Пт, Сб, Вс)
-    const dayChips = document.querySelectorAll('.mobile-day-selector .mob-day-chip');
+    const dayChips = document.querySelectorAll('.mobile-day-selector .mob-day-chip:not(.mob-view-btn)');
     dayChips.forEach(chip => {
       chip.addEventListener('click', () => {
         dayChips.forEach(c => c.classList.remove('active'));
@@ -2610,24 +3241,45 @@
         const selectedDay = chip.getAttribute('data-day');
         const dayCards = document.querySelectorAll('.calendar-day-card');
 
-        if (selectedDay === 'all') {
+        if (weekViewMode === 'columns') {
+          // В режиме колонок (как на ПК) не скрываем дни, а плавно центрируем выбранный день!
           dayCards.forEach(card => {
             card.style.display = '';
           });
-        } else {
-          let foundFirst = false;
-          dayCards.forEach(card => {
-            const nameEl = card.querySelector('.day-name');
-            const dayName = (nameEl ? nameEl.textContent : '').trim().toLowerCase();
-            const matches = dayName.startsWith(selectedDay.toLowerCase());
-
-            card.style.display = matches ? '' : 'none';
-
-            if (matches && !foundFirst) {
-              foundFirst = true;
-              card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          if (selectedDay !== 'all') {
+            for (let i = 0; i < dayCards.length; i++) {
+              const card = dayCards[i];
+              const nameEl = card.querySelector('.day-name');
+              const dayName = (nameEl ? nameEl.textContent : '').trim().toLowerCase();
+              if (dayName.startsWith(selectedDay.toLowerCase())) {
+                card.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                break;
+              }
             }
-          });
+          } else {
+            const mainEl = document.querySelector('.main-content');
+            if (mainEl) mainEl.scrollTo({ left: 0, behavior: 'smooth' });
+          }
+        } else {
+          if (selectedDay === 'all') {
+            dayCards.forEach(card => {
+              card.style.display = '';
+            });
+          } else {
+            let foundFirst = false;
+            dayCards.forEach(card => {
+              const nameEl = card.querySelector('.day-name');
+              const dayName = (nameEl ? nameEl.textContent : '').trim().toLowerCase();
+              const matches = dayName.startsWith(selectedDay.toLowerCase());
+
+              card.style.display = matches ? '' : 'none';
+
+              if (matches && !foundFirst) {
+                foundFirst = true;
+                card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+              }
+            });
+          }
         }
 
         if (window.GoodNotesStylus) {
@@ -2637,6 +3289,8 @@
         }
       });
     });
+
+    document.getElementById('mob-view-toggle-btn')?.addEventListener('click', toggleWeekViewMode);
   }
 
   // ==========================================================================
@@ -2959,12 +3613,63 @@
         }
       },
 
+      onStrokeErase: (data) => {
+        if (!data || !data.strokeIds) return;
+        if (window.GoodNotesStylus && typeof window.GoodNotesStylus.remoteEraseStrokes === 'function') {
+          window.GoodNotesStylus.remoteEraseStrokes(data.strokeIds);
+        }
+      },
+
+      onImageAdd: (data) => {
+        if (!data || !data.image || !data.periodId) return;
+        if (!placedImages[data.periodId]) placedImages[data.periodId] = [];
+        if (!placedImages[data.periodId].some(im => im.id === data.image.id)) {
+          placedImages[data.periodId].push(data.image);
+          savePlacedImagesForPeriod(data.periodId);
+          const curPid = state.periods[state.currentPeriodIndex]?.id;
+          if (curPid === data.periodId) {
+            renderPlacedImages(curPid);
+          }
+        }
+      },
+
+      onImageUpdate: (data) => {
+        if (!data || !data.image || !data.periodId) return;
+        const list = placedImages[data.periodId];
+        if (list) {
+          const target = list.find(im => im.id === data.image.id);
+          if (target) {
+            Object.assign(target, data.image);
+            savePlacedImagesForPeriod(data.periodId);
+            const curPid = state.periods[state.currentPeriodIndex]?.id;
+            if (curPid === data.periodId) {
+              renderPlacedImages(curPid);
+            }
+          }
+        }
+      },
+
+      onImageDelete: (data) => {
+        if (!data || !data.imageId || !data.periodId) return;
+        const list = placedImages[data.periodId];
+        if (list) {
+          placedImages[data.periodId] = list.filter(im => im.id !== data.imageId);
+          savePlacedImagesForPeriod(data.periodId);
+          const curPid = state.periods[state.currentPeriodIndex]?.id;
+          if (curPid === data.periodId) {
+            renderPlacedImages(curPid);
+          }
+        }
+      },
+
       onRequestState: () => {
         return {
           periods: state.periods,
           backlog: state.backlog,
           currentPeriodIndex: state.currentPeriodIndex,
-          drawings: window.GoodNotesStylus ? window.GoodNotesStylus.getDrawingsBackup() : {}
+          drawings: window.GoodNotesStylus ? window.GoodNotesStylus.getDrawingsBackup() : {},
+          vectorStrokes: window.GoodNotesStylus ? window.GoodNotesStylus.getVectorStrokesBackup() : {},
+          placedImages: getAllPlacedImagesBackup()
         };
       },
 
@@ -2977,6 +3682,12 @@
         }
         if (remoteState.drawings && window.GoodNotesStylus) {
           window.GoodNotesStylus.restoreDrawingsBackup(remoteState.drawings);
+        }
+        if (remoteState.vectorStrokes && window.GoodNotesStylus) {
+          window.GoodNotesStylus.restoreVectorStrokesBackup(remoteState.vectorStrokes);
+        }
+        if (remoteState.placedImages) {
+          restoreAllPlacedImagesBackup(remoteState.placedImages);
         }
         saveState();
         renderPeriodsNav();

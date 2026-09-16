@@ -49,6 +49,10 @@
     onStrokeEnd: null,
     onStrokeUndo: null,
     onStrokeClear: null,
+    onStrokeErase: null,
+    onImageAdd: null,
+    onImageUpdate: null,
+    onImageDelete: null,
     onRequestState: null,
     onFullStateSync: null
   };
@@ -926,6 +930,30 @@
         }
         break;
 
+      case 'STROKE_ERASE':
+        if (typeof callbacks.onStrokeErase === 'function') {
+          callbacks.onStrokeErase(data);
+        }
+        break;
+
+      case 'IMAGE_ADD':
+        if (typeof callbacks.onImageAdd === 'function') {
+          callbacks.onImageAdd(data);
+        }
+        break;
+
+      case 'IMAGE_UPDATE':
+        if (typeof callbacks.onImageUpdate === 'function') {
+          callbacks.onImageUpdate(data);
+        }
+        break;
+
+      case 'IMAGE_DELETE':
+        if (typeof callbacks.onImageDelete === 'function') {
+          callbacks.onImageDelete(data);
+        }
+        break;
+
       case 'REQUEST_STATE':
         // Другое устройство только что подключилось и запросило слепок данных
         if (typeof callbacks.onRequestState === 'function') {
@@ -1149,6 +1177,44 @@
 
     broadcastClear: function (details) {
       broadcastMessage('STROKE_CLEAR', details);
+    },
+
+    broadcastStrokeErase: function (a, b) {
+      const payload = (typeof a === 'object' && a !== null)
+        ? a
+        : { periodIndex: a, strokeId: b };
+      broadcastMessage('STROKE_ERASE', payload);
+    },
+
+    broadcastImageAdd: function (a, b) {
+      let payload;
+      if (b !== undefined) {
+        payload = { periodIndex: a, image: b };
+      } else if (typeof a === 'object' && a !== null) {
+        payload = a.image ? a : { periodIndex: 0, image: a };
+      } else {
+        payload = a;
+      }
+      broadcastMessage('IMAGE_ADD', payload);
+    },
+
+    broadcastImageUpdate: function (a, b) {
+      let payload;
+      if (b !== undefined) {
+        payload = { periodIndex: a, image: b };
+      } else if (typeof a === 'object' && a !== null) {
+        payload = a.image ? a : { periodIndex: 0, image: a };
+      } else {
+        payload = a;
+      }
+      broadcastMessage('IMAGE_UPDATE', payload);
+    },
+
+    broadcastImageDelete: function (a, b) {
+      const payload = (typeof a === 'object' && a !== null)
+        ? a
+        : { periodIndex: a, imageId: b };
+      broadcastMessage('IMAGE_DELETE', payload);
     },
 
     broadcastFullState: function (stateData) {
