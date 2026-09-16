@@ -2771,8 +2771,18 @@ body.dark-mode .mob-day-chip.active {
   }
 
   .header-top {
-    padding: 10px 16px;
-    gap: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    gap: 8px;
+  }
+
+  .brand-section {
+    display: flex;
+    align-items: center;
+    gap: 6px;
   }
 
   .brand-title {
@@ -2789,12 +2799,26 @@ body.dark-mode .mob-day-chip.active {
   }
 
   .header-actions {
-    display: none; /* Перенесено в нижнюю панель и модалки */
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .header-actions .btn {
+    padding: 6px 10px;
+    font-size: 0.8rem;
   }
 
   .period-nav {
     width: 100%;
     justify-content: space-between;
+    order: 2;
+  }
+
+  .header-search {
+    max-width: 100%;
+    width: 100%;
+    order: 3;
   }
 
   .current-period-display {

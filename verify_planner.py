@@ -205,7 +205,14 @@ def test_zero_latency_and_redesign():
     assert "showGestureToast" in js, "app.js missing gesture feedback toast"
     assert "card-accordion" in js or "accordion-toggle" in js, "app.js missing companion clustering accordion"
     assert "stylus-redo-btn" in js, "app.js missing redo button handler"
-    print("✓ app.js zero-latency canvas, multi-touch gestures, in-memory snapshots, and card clustering verified.")
+    # Deep robustness assertions
+    assert "changedTouches" in js, "app.js missing changedTouches for accurate multi-touch start tracking"
+    assert "touchcancel" in js, "app.js missing touchcancel gesture reset listener"
+    assert "discarded.width = 0" in js, "app.js missing GPU backing store deallocation on snapshot discard"
+    assert "card-accordion" in js and "checklist-label" in js, "app.js missing accordion touch-drag exclusion"
+    assert "parentId === deleted.id" in js, "app.js missing cascading companion deletion on parent removal"
+    assert "removedBeforeTarget" in js, "app.js missing in-day downward DnD index compensation"
+    print("✓ app.js zero-latency canvas, multi-touch gestures, in-memory snapshots, memory safety, and card clustering verified.")
 
     # 2. Settings Dropdown & Header Search in index.html
     html_path = os.path.join(DIR, "index.html")
@@ -230,14 +237,15 @@ def test_zero_latency_and_redesign():
     assert ".accordion-checklist" in css, "styles.css missing accordion checklist styles"
     assert ".subject-pill" in css, "styles.css missing subject-pill styles"
     assert ".stylus-toast" in css, "styles.css missing stylus toast styles"
+    assert "touch-action: none" in css, "styles.css missing touch-action: none on canvas"
     print("✓ styles.css dropdown menu, slim progress bar, accordion checklists, subject pills, and toast verified.")
 
-    # 4. SW v4 verification
+    # 4. SW v5 verification
     sw_path = os.path.join(DIR, "sw.js")
     with open(sw_path, "r", encoding="utf-8") as f:
         sw = f.read()
-    assert "himbiorus-pwa-v4" in sw, "sw.js missing v4 cache name"
-    print("✓ sw.js v4 cache version verified.")
+    assert "himbiorus-pwa-v5" in sw, "sw.js missing v5 cache name"
+    print("✓ sw.js v5 cache version verified.")
 
 if __name__ == "__main__":
     test_files_exist()
@@ -246,5 +254,5 @@ if __name__ == "__main__":
     test_stylus_darkmode_mobile_features()
     test_advanced_stylus_and_mobile_features()
     test_zero_latency_and_redesign()
-    print("\n🎉 ALL VERIFICATION TESTS (DATA + ADVANCED STYLUS + DARK MODE + MOBILE + PWA + REDESIGN + GESTURES) PASSED SUCCESSFULLY!")
+    print("\n🎉 ALL VERIFICATION TESTS (DATA + ADVANCED STYLUS + DARK MODE + MOBILE + PWA + REDESIGN + GESTURES + DEEP ROBUSTNESS) PASSED SUCCESSFULLY!")
 

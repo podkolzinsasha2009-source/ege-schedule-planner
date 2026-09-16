@@ -460,7 +460,7 @@
     delBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       if (confirm(`Удалить плашку «${item.title}»?`)) {
-        deleteItem(dateKey, index, isBacklog);
+        deleteItem(dateKey, index, isBacklog, item.id);
       }
     });
 
@@ -634,7 +634,7 @@
     };
 
     card.addEventListener('touchstart', (e) => {
-      if (e.target.closest('.card-controls, .card-check, .card-btn')) {
+      if (e.target.closest('.card-controls, .card-check, .card-btn, .card-accordion, .accordion-toggle, .checklist-row, .checklist-check, .checklist-del-btn, .checklist-label')) {
         return;
       }
 
@@ -828,7 +828,7 @@
         return parseInt(cards[i].getAttribute('data-index'), 10);
       }
     }
-    return cards.length; // в конец списка
+    return 999999; // в самый конец списка (Math.min с targetArray.length гарантирует корректную вставку)
   }
 
   // АТОМАРНЫЙ ПЕРЕНОС БЛОКА
@@ -850,9 +850,12 @@
     // 2. Находим основной элемент и его связанные компаньоны
     let movedItems = [];
     const pIdx = sourceArray.findIndex(it => it.id === source.itemId);
+    let originalIndices = [];
     if (pIdx !== -1) {
+      originalIndices.push(pIdx);
       movedItems.push(sourceArray.splice(pIdx, 1)[0]);
     } else if (source.sourceIndex >= 0 && source.sourceIndex < sourceArray.length) {
+      originalIndices.push(source.sourceIndex);
       movedItems.push(sourceArray.splice(source.sourceIndex, 1)[0]);
     }
 
@@ -863,6 +866,7 @@
       source.companionIds.forEach(cId => {
         const cIdx = sourceArray.findIndex(it => it.id === cId);
         if (cIdx !== -1) {
+          originalIndices.push(cIdx);
           movedItems.push(sourceArray.splice(cIdx, 1)[0]);
         }
       });
@@ -885,8 +889,15 @@
       return;
     }
 
-    // 4. Вставляем элемент в целевой список на точный индекс
-    const insertIdx = Math.min(Math.max(0, target.targetIndex), targetArray.length);
+    // 4. Вычисляем точный индекс вставки
+    let targetIndex = target.targetIndex;
+    // Если перемещение внутри одного и того же списка, компенсируем смещение от удаленных элементов
+    if (sourceArray === targetArray && targetIndex < 999999) {
+      const removedBeforeTarget = originalIndices.filter(idx => idx < targetIndex).length;
+      targetIndex = Math.max(0, targetIndex - removedBeforeTarget);
+    }
+
+    const insertIdx = Math.min(Math.max(0, targetIndex), targetArray.length);
     targetArray.splice(insertIdx, 0, ...movedItems);
 
     // 5. Сохраняем состояние и перерисовываем
@@ -960,13 +971,28 @@
   // УДАЛЕНИЕ И РЕДАКТИРОВАНИЕ
   // ==========================================
 
-  function deleteItem(dateKey, index, isBacklog) {
+  function deleteItem(dateKey, index, isBacklog, itemId) {
+    let sourceArray = null;
     if (isBacklog) {
-      state.backlog.splice(index, 1);
+      sourceArray = state.backlog;
     } else {
       const period = findPeriodByDate(dateKey);
       if (period && period.days[dateKey]) {
-        period.days[dateKey].items.splice(index, 1);
+        sourceArray = period.days[dateKey].items;
+      }
+    }
+    if (!sourceArray) return;
+
+    const pIdx = itemId ? sourceArray.findIndex(it => it.id === itemId) : index;
+    if (pIdx >= 0 && pIdx < sourceArray.length) {
+      const deleted = sourceArray.splice(pIdx, 1)[0];
+      if (deleted && deleted.id) {
+        // Удаляем также все привязанные сопутствующие блоки
+        for (let i = sourceArray.length - 1; i >= 0; i--) {
+          if (sourceArray[i].parentId === deleted.id) {
+            sourceArray.splice(i, 1);
+          }
+        }
       }
     }
     saveState();
@@ -1413,7 +1439,7 @@
     let activeTouches = new Map();
     let undoStack = [];
     let redoStack = [];
-    const MAX_UNDO = 30;
+    const MAX_UNDO = 15;
     let saveTimeout = null;
     let resizeObserver = null;
     let isPenActive = false;
@@ -1458,6 +1484,14 @@
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(snap, 0, 0);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    function clearRedo() {
+      while (redoStack.length > 0) {
+        const discarded = redoStack.pop();
+        discarded.width = 0;
+        discarded.height = 0;
+      }
     }
 
     function showGestureToast(msg) {
@@ -1505,7 +1539,11 @@
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
       if (tempCanvas) {
-        ctx.drawImage(tempCanvas, 0, 0, displayWidth, displayHeight);
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.drawImage(tempCanvas, 0, 0);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        tempCanvas.width = 0;
+        tempCanvas.height = 0;
       } else {
         loadDrawing();
       }
@@ -1540,15 +1578,19 @@
       const key = getPeriodKey();
       const saved = localStorage.getItem(key);
       clearCanvasOnly();
-      undoStack = [];
-      redoStack = [];
+      clearRedo();
+      while (undoStack.length > 0) {
+        const d = undoStack.pop();
+        d.width = 0;
+        d.height = 0;
+      }
       if (saved) {
         const img = new Image();
         img.onload = () => {
+          ctx.setTransform(1, 0, 0, 1, 0, 0);
+          ctx.drawImage(img, 0, 0);
           const dpr = window.devicePixelRatio || 1;
-          const displayW = canvas.width / dpr;
-          const displayH = canvas.height / dpr;
-          ctx.drawImage(img, 0, 0, displayW, displayH);
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         };
         img.src = saved;
       }
@@ -1557,9 +1599,13 @@
     function saveUndo() {
       const snap = takeSnapshot();
       if (snap) {
-        if (undoStack.length >= MAX_UNDO) undoStack.shift();
+        if (undoStack.length >= MAX_UNDO) {
+          const discarded = undoStack.shift();
+          discarded.width = 0;
+          discarded.height = 0;
+        }
         undoStack.push(snap);
-        redoStack = [];
+        clearRedo();
       }
     }
 
@@ -1567,7 +1613,14 @@
       if (undoStack.length === 0) return;
       const currentSnap = takeSnapshot();
       const prev = undoStack.pop();
-      if (currentSnap) redoStack.push(currentSnap);
+      if (currentSnap) {
+        if (redoStack.length >= MAX_UNDO) {
+          const discarded = redoStack.shift();
+          discarded.width = 0;
+          discarded.height = 0;
+        }
+        redoStack.push(currentSnap);
+      }
       restoreSnapshot(prev);
       debouncedSaveDrawing();
       showGestureToast('↩️ Отмена');
@@ -1577,7 +1630,14 @@
       if (redoStack.length === 0) return;
       const currentSnap = takeSnapshot();
       const next = redoStack.pop();
-      if (currentSnap) undoStack.push(currentSnap);
+      if (currentSnap) {
+        if (undoStack.length >= MAX_UNDO) {
+          const discarded = undoStack.shift();
+          discarded.width = 0;
+          discarded.height = 0;
+        }
+        undoStack.push(currentSnap);
+      }
       restoreSnapshot(next);
       debouncedSaveDrawing();
       showGestureToast('↪️ Повтор');
@@ -1647,6 +1707,12 @@
     }
 
     // Touch event listeners для Palm Rejection и мультитач-жестов GoodNotes
+    const resetTouchGesture = () => {
+      touchGesture.maxCount = 0;
+      touchGesture.hasMoved = false;
+      touchGesture.startPoints.clear();
+    };
+
     canvas.addEventListener('touchstart', (e) => {
       if (!isDrawingMode) return;
       if (isPenActive) {
@@ -1665,9 +1731,11 @@
         touchGesture.maxCount = Math.max(touchGesture.maxCount, e.touches.length);
       }
 
-      for (let i = 0; i < e.touches.length; i++) {
-        const t = e.touches[i];
-        touchGesture.startPoints.set(t.identifier, { x: t.clientX, y: t.clientY });
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches[i];
+        if (!touchGesture.startPoints.has(t.identifier)) {
+          touchGesture.startPoints.set(t.identifier, { x: t.clientX, y: t.clientY });
+        }
       }
 
       if (e.touches.length >= 2 || (palmRejectionOnlyPen && currentTool !== 'pan')) {
@@ -1707,7 +1775,7 @@
       // Определение тапов 2 и 3 пальцами (GoodNotes / Procreate)
       if (e.touches.length === 0) {
         const duration = Date.now() - touchGesture.startTime;
-        if (!touchGesture.hasMoved && duration < 380) {
+        if (!touchGesture.hasMoved && duration < 400) {
           if (touchGesture.maxCount === 2) {
             e.preventDefault();
             undo();
@@ -1716,10 +1784,11 @@
             redo();
           }
         }
-        touchGesture.maxCount = 0;
-        touchGesture.startPoints.clear();
+        resetTouchGesture();
       }
     }, { passive: false });
+
+    canvas.addEventListener('touchcancel', resetTouchGesture);
 
     // Pointer Events на холсте с аппаратной десинхронизацией
     canvas.addEventListener('pointerdown', (e) => {
@@ -1816,7 +1885,8 @@
       e.preventDefault();
 
       // Zero-latency рендеринг через getCoalescedEvents для 120/240Hz стилусов
-      const events = (typeof e.getCoalescedEvents === 'function') ? e.getCoalescedEvents() : [e];
+      const coalesced = (typeof e.getCoalescedEvents === 'function') ? e.getCoalescedEvents() : null;
+      const events = (coalesced && coalesced.length > 0) ? coalesced : [e];
       for (let i = 0; i < events.length; i++) {
         const ev = events[i];
         const coords = getCanvasCoords(ev);
@@ -1868,9 +1938,17 @@
       }
 
       if (didDrawInStroke && currentStrokeBeforeSnap) {
-        if (undoStack.length >= MAX_UNDO) undoStack.shift();
+        if (undoStack.length >= MAX_UNDO) {
+          const discarded = undoStack.shift();
+          discarded.width = 0;
+          discarded.height = 0;
+        }
         undoStack.push(currentStrokeBeforeSnap);
-        redoStack = [];
+        clearRedo();
+        currentStrokeBeforeSnap = null;
+      } else if (currentStrokeBeforeSnap) {
+        currentStrokeBeforeSnap.width = 0;
+        currentStrokeBeforeSnap.height = 0;
         currentStrokeBeforeSnap = null;
       }
 
