@@ -39,6 +39,7 @@
     onMoveItem: null,
     onToggleCompleted: null,
     onAddItem: null,
+    onUpdateItem: null,
     onDeleteItem: null,
     onStrokeAdd: null,
     onStrokeUndo: null,
@@ -232,13 +233,16 @@
 
       setFunc(4 * version + 9, 8, true);
 
+      // Резервируем ячейки информации о формате (15 бит вокруг поисковых меток)
       for (let i = 0; i < 9; i++) {
         if (!isReserved[8][i]) isReserved[8][i] = true;
         if (!isReserved[i][8]) isReserved[i][8] = true;
-        if (size - 1 - i >= 0) {
-          if (!isReserved[8][size - 1 - i]) isReserved[8][size - 1 - i] = true;
-          if (!isReserved[size - 1 - i][8]) isReserved[size - 1 - i][8] = true;
-        }
+      }
+      for (let i = 0; i < 8; i++) {
+        isReserved[8][size - 1 - i] = true;
+      }
+      for (let i = 0; i < 7; i++) {
+        isReserved[size - 1 - i][8] = true;
       }
 
       const dataBits = [];
@@ -270,16 +274,16 @@
         dir = -dir;
       }
 
-      // Format info bits for Level L, mask 0: 010001111010110
-      const FORMAT_BITS = [0, 1, 0, 0, 0, 1, 1, 1, 1, 0, 1, 0, 1, 1, 0];
+      // Информация о формате: Level L, mask 0 -> 111011111000100 (BCH 15,5 с маской 0x5412)
+      const FORMAT_BITS = [1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 0, 0, 1, 0, 0];
       for (let i = 0; i < 6; i++) matrix[8][i] = FORMAT_BITS[i] === 1;
       matrix[8][7] = FORMAT_BITS[6] === 1;
       matrix[8][8] = FORMAT_BITS[7] === 1;
       matrix[7][8] = FORMAT_BITS[8] === 1;
       for (let i = 9; i < 15; i++) matrix[14 - i][8] = FORMAT_BITS[i] === 1;
 
-      for (let i = 0; i < 8; i++) matrix[size - 1 - i][8] = FORMAT_BITS[i] === 1;
-      for (let i = 8; i < 15; i++) matrix[8][size - 15 + i] = FORMAT_BITS[i] === 1;
+      for (let i = 0; i < 7; i++) matrix[size - 1 - i][8] = FORMAT_BITS[i] === 1;
+      for (let i = 0; i < 8; i++) matrix[8][size - 8 + i] = FORMAT_BITS[7 + i] === 1;
 
       return { matrix, size };
     }
@@ -338,35 +342,58 @@
 
   function createConnectPacket(clientId) {
     const protoName = [0, 4, 77, 81, 84, 84]; // 'MQTT'
-    const protoLevel = [4]; // 3.1.1
-    const flags = [2]; // Clean session
+    const protoLevel = 4; // 3.1.1
+    const flags = 2; // Clean session
     const keepAlive = [0, 45]; // 45 seconds keep-alive
     const clientIdBytes = new TextEncoder().encode(clientId);
-    const clientIdPayload = [Math.floor(clientIdBytes.length / 256), clientIdBytes.length % 256, ...clientIdBytes];
-    const varHeader = [...protoName, ...protoLevel, ...flags, ...keepAlive, ...clientIdPayload];
-    return new Uint8Array([0x10, ...encodeRemainingLength(varHeader.length), ...varHeader]);
+    const varHeaderLen = 10 + 2 + clientIdBytes.length;
+    const remBytes = encodeRemainingLength(varHeaderLen);
+    const packet = new Uint8Array(1 + remBytes.length + varHeaderLen);
+    packet[0] = 0x10;
+    packet.set(remBytes, 1);
+    let offset = 1 + remBytes.length;
+    packet.set(protoName, offset); offset += 6;
+    packet[offset++] = protoLevel;
+    packet[offset++] = flags;
+    packet.set(keepAlive, offset); offset += 2;
+    packet[offset++] = Math.floor(clientIdBytes.length / 256);
+    packet[offset++] = clientIdBytes.length % 256;
+    packet.set(clientIdBytes, offset);
+    return packet;
   }
 
   function createSubscribePacket(topic, packetId = 1) {
     const tBytes = new TextEncoder().encode(topic);
-    const payload = [
-      Math.floor(packetId / 256), packetId % 256,
-      Math.floor(tBytes.length / 256), tBytes.length % 256,
-      ...tBytes,
-      0 // QoS 0
-    ];
-    return new Uint8Array([0x82, ...encodeRemainingLength(payload.length), ...payload]);
+    const payloadLen = 2 + 2 + tBytes.length + 1;
+    const remBytes = encodeRemainingLength(payloadLen);
+    const packet = new Uint8Array(1 + remBytes.length + payloadLen);
+    packet[0] = 0x82;
+    packet.set(remBytes, 1);
+    let offset = 1 + remBytes.length;
+    packet[offset++] = Math.floor(packetId / 256);
+    packet[offset++] = packetId % 256;
+    packet[offset++] = Math.floor(tBytes.length / 256);
+    packet[offset++] = tBytes.length % 256;
+    packet.set(tBytes, offset); offset += tBytes.length;
+    packet[offset] = 0; // QoS 0
+    return packet;
   }
 
   function createPublishPacket(topic, payloadStr) {
     const tBytes = new TextEncoder().encode(topic);
     const mBytes = new TextEncoder().encode(payloadStr);
-    const payload = [
-      Math.floor(tBytes.length / 256), tBytes.length % 256,
-      ...tBytes,
-      ...mBytes
-    ];
-    return new Uint8Array([0x30, ...encodeRemainingLength(payload.length), ...payload]);
+    const varHeaderLen = 2 + tBytes.length;
+    const payloadLen = varHeaderLen + mBytes.length;
+    const remBytes = encodeRemainingLength(payloadLen);
+    const packet = new Uint8Array(1 + remBytes.length + payloadLen);
+    packet[0] = 0x30;
+    packet.set(remBytes, 1);
+    let offset = 1 + remBytes.length;
+    packet[offset++] = Math.floor(tBytes.length / 256);
+    packet[offset++] = tBytes.length % 256;
+    packet.set(tBytes, offset); offset += tBytes.length;
+    packet.set(mBytes, offset);
+    return packet;
   }
 
   const PINGREQ_PACKET = new Uint8Array([0xC0, 0x00]);
@@ -507,7 +534,10 @@
     // 2. Инициализация WebSocket реле
     connectWebSocket();
 
-    // 3. Запуск фоновых таймеров пульса
+    // 3. Инициализация опционального Firebase Realtime DB
+    setupFirebaseSubscription(roomId);
+
+    // 4. Запуск фоновых таймеров пульса
     if (heartbeatInterval) clearInterval(heartbeatInterval);
     heartbeatInterval = setInterval(sendHeartbeat, 15000);
 
@@ -636,6 +666,9 @@
         const topicLen = (payload[pIdx] << 8) | payload[pIdx + 1];
         pIdx += 2;
         pIdx += topicLen; // пропускаем топик
+        if ((pkt.flags & 0x06) > 0) {
+          pIdx += 2; // пропускаем Packet Identifier для QoS 1/2
+        }
         const msgStr = new TextDecoder().decode(payload.subarray(pIdx));
         handleIncomingPayload(JSON.parse(msgStr));
       } catch (e) {
@@ -685,6 +718,7 @@
       try { broadcastChannel.close(); } catch (e) {}
       broadcastChannel = null;
     }
+    teardownFirebase();
     activePeers.clear();
     currentRoom = null;
     saveStoredRoom(null);
@@ -797,6 +831,12 @@
         }
         break;
 
+      case 'UPDATE_ITEM':
+        if (typeof callbacks.onUpdateItem === 'function') {
+          callbacks.onUpdateItem(data);
+        }
+        break;
+
       case 'DELETE_ITEM':
         if (typeof callbacks.onDeleteItem === 'function') {
           callbacks.onDeleteItem(data);
@@ -843,8 +883,10 @@
   }
 
   // ==========================================================================
-  // ОПЦИОНАЛЬНЫЙ GOOGLE FIREBASE REALTIME DB
+  // ОПЦИОНАЛЬНЫЙ GOOGLE FIREBASE REALTIME DB (ДВУХСТОРОННИЙ ОБМЕН ЧЕРЕЗ SSE/REST)
   // ==========================================================================
+
+  let firebaseEventSource = null;
 
   function getFirebaseUrl() {
     try {
@@ -862,6 +904,51 @@
         localStorage.removeItem(FIREBASE_STORAGE_KEY);
       }
     } catch (e) {}
+
+    if (currentRoom) {
+      setupFirebaseSubscription(currentRoom);
+    }
+  }
+
+  function setupFirebaseSubscription(roomId) {
+    teardownFirebase();
+    const fbUrl = getFirebaseUrl();
+    if (!fbUrl || !roomId) return;
+
+    const ES = (typeof EventSource !== 'undefined') ? EventSource : ((typeof global !== 'undefined' && global.EventSource) || (typeof globalThis !== 'undefined' && globalThis.EventSource));
+    if (!ES) return;
+
+    try {
+      const streamUrl = `${fbUrl}/rooms/${encodeURIComponent(roomId)}/latest.json`;
+      firebaseEventSource = new ES(streamUrl);
+
+      const handleEventData = (event) => {
+        try {
+          const parsed = JSON.parse(event.data);
+          const payload = parsed && parsed.data ? parsed.data : parsed;
+          if (payload && typeof payload === 'object' && payload.id && payload.type) {
+            handleIncomingPayload(payload);
+          }
+        } catch (err) {}
+      };
+
+      firebaseEventSource.addEventListener('put', handleEventData);
+      firebaseEventSource.onmessage = handleEventData;
+      firebaseEventSource.onerror = () => {
+        // Firebase SSE auto-reconnects under the hood
+      };
+    } catch (err) {
+      console.warn('Не удалось подключить Firebase EventSource:', err);
+    }
+  }
+
+  function teardownFirebase() {
+    if (firebaseEventSource) {
+      try {
+        firebaseEventSource.close();
+      } catch (e) {}
+      firebaseEventSource = null;
+    }
   }
 
   function sendToFirebase(envelope) {
@@ -962,6 +1049,10 @@
 
     broadcastAdd: function (details) {
       broadcastMessage('ADD_ITEM', details);
+    },
+
+    broadcastUpdate: function (details) {
+      broadcastMessage('UPDATE_ITEM', details);
     },
 
     broadcastDelete: function (details) {

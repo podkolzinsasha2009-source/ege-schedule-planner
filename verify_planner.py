@@ -266,7 +266,10 @@ def test_realtime_synchronization():
     assert "MiniQR" in sync_js or "toSVG" in sync_js, "sync.js missing standalone QR code generator"
     assert "REQUEST_STATE" in sync_js and "FULL_STATE_SYNC" in sync_js, "sync.js missing state sync protocol"
     assert "MOVE_ITEM" in sync_js and "STROKE_ADD" in sync_js, "sync.js missing event protocol"
-    print("✓ sync.js engine verified: HiveMQ WSS relay, MQTT 3.1.1 framing, BroadcastChannel, and MiniQR.")
+    assert "UPDATE_ITEM" in sync_js, "sync.js missing UPDATE_ITEM protocol"
+    assert "setupFirebaseSubscription" in sync_js, "sync.js missing setupFirebaseSubscription"
+    assert "sendToFirebase" in sync_js, "sync.js missing sendToFirebase"
+    print("✓ sync.js engine verified: HiveMQ WSS relay, MQTT 3.1.1 framing, BroadcastChannel, Firebase RTDB, and MiniQR.")
 
     # 2. app.js Integration Verification
     app_js_path = os.path.join(DIR, "app.js")
@@ -275,12 +278,17 @@ def test_realtime_synchronization():
     assert "setupRealtimeSync" in app_js, "app.js missing setupRealtimeSync"
     assert "window.SyncEngine.broadcastMove" in app_js, "app.js missing broadcastMove in moveItem"
     assert "window.SyncEngine.broadcastToggle" in app_js, "app.js missing broadcastToggle in checkboxes"
+    assert "window.SyncEngine.broadcastAdd" in app_js, "app.js missing broadcastAdd in saveModalForm"
+    assert "window.SyncEngine.broadcastUpdate" in app_js, "app.js missing broadcastUpdate in saveModalForm"
+    assert "window.SyncEngine.broadcastDelete" in app_js, "app.js missing broadcastDelete"
     assert "window.SyncEngine.broadcastStroke" in app_js, "app.js missing broadcastStroke in finishStroke"
     assert "window.SyncEngine.broadcastUndo" in app_js, "app.js missing broadcastUndo"
     assert "drawRemoteStroke" in app_js, "app.js missing drawRemoteStroke in GoodNotes stylus engine"
     assert "remoteUndo" in app_js, "app.js missing remoteUndo"
     assert "remoteClear" in app_js, "app.js missing remoteClear"
-    print("✓ app.js integration verified: atomic moves, checkboxes, vector stylus strokes, and state sync hooks.")
+    assert "onUpdateItem" in app_js, "app.js missing onUpdateItem handler"
+    assert "sync-firebase-input" in app_js, "app.js missing sync-firebase-input wiring"
+    print("✓ app.js integration verified: atomic moves, checkboxes, edits, deletions, vector stylus strokes, and Firebase RTDB.")
 
     # 3. index.html Markup Verification
     html_path = os.path.join(DIR, "index.html")
@@ -296,8 +304,10 @@ def test_realtime_synchronization():
     assert 'id="sync-copy-code-btn"' in html, "index.html missing copy code button"
     assert 'id="sync-copy-link-btn"' in html, "index.html missing copy link button"
     assert 'id="sync-join-btn"' in html, "index.html missing join room button"
+    assert 'id="sync-firebase-input"' in html, "index.html missing Firebase URL input"
+    assert 'id="sync-firebase-save-btn"' in html, "index.html missing Firebase save button"
     assert 'id="mob-sync-btn"' in html, "index.html missing mobile navigation sync button"
-    print("✓ index.html markup verified: sync button, status badges, QR modal, and mobile actions.")
+    print("✓ index.html markup verified: sync button, status badges, QR modal, Firebase settings, and mobile actions.")
 
     # 4. styles.css Verification
     css_path = os.path.join(DIR, "styles.css")
@@ -309,7 +319,8 @@ def test_realtime_synchronization():
     assert ".sync-modal-dialog" in css, "styles.css missing .sync-modal-dialog"
     assert ".sync-room-code" in css, "styles.css missing .sync-room-code"
     assert ".sync-qr-container" in css, "styles.css missing .sync-qr-container"
-    print("✓ styles.css verified: sync buttons, pulse indicators, modal dialog, and dark mode.")
+    assert ".sync-firebase-row" in css, "styles.css missing .sync-firebase-row"
+    print("✓ styles.css verified: sync buttons, pulse indicators, modal dialog, Firebase styles, and dark mode.")
 
     # 5. sw.js Caching Verification
     sw_path = os.path.join(DIR, "sw.js")
@@ -319,8 +330,35 @@ def test_realtime_synchronization():
     assert "himbiorus-pwa-v6" in sw, "sw.js missing v6 cache version"
     print("✓ sw.js PWA v6 cache verified: sync.js cached for 100% offline capability.")
 
-    # 6. Multi-Device End-to-End Node Simulation
-    import subprocess
+    # 6. Bit-Perfect MiniQR ISO/IEC 18004 Verification against Python qrcode
+    import subprocess, json
+    try:
+        import qrcode
+        test_url = "https://podkolzinsasha2009-source.github.io/ege-schedule-planner/#sync=ХИМ-749"
+        qr = qrcode.QRCode(version=None, error_correction=qrcode.constants.ERROR_CORRECT_L, mask_pattern=0)
+        qr.add_data(test_url.encode('utf-8'))
+        qr.make(fit=True)
+        py_matrix = [[1 if cell else 0 for cell in row] for row in qr.modules]
+
+        node_qr_script = """
+        const fs = require('fs');
+        const syncCode = fs.readFileSync('sync.js', 'utf8');
+        const match = syncCode.match(/const MiniQR = \\(function \\(\\) ([\\s\\S]*?)\\)\\(\\);/);
+        let modified = match[1].replace('return { toSVG };', 'return { toSVG, generateMatrix };');
+        const miniQR = (new Function(modified))();
+        const { matrix } = miniQR.generateMatrix(process.argv[1]);
+        console.log(JSON.stringify(matrix.map(row => row.map(c => c ? 1 : 0))));
+        """
+        res_qr = subprocess.run(["node", "-e", node_qr_script, test_url], cwd=DIR, capture_output=True, text=True, encoding="utf-8")
+        assert res_qr.returncode == 0, f"MiniQR evaluation failed: {res_qr.stderr}"
+        js_matrix = json.loads(res_qr.stdout.strip())
+        diffs = sum(1 for r in range(len(py_matrix)) for c in range(len(py_matrix[0])) if py_matrix[r][c] != js_matrix[r][c])
+        assert diffs == 0, f"MiniQR generated matrix differs by {diffs} modules from official QR spec"
+        print("✓ MiniQR vector generator verified: 100% bit-perfect match with ISO/IEC 18004 specification.")
+    except ImportError:
+        print("⚠ python qrcode package not found, skipping bit-level matrix diff.")
+
+    # 7. Multi-Device End-to-End Node Simulation
     node_test_script = """
     const fs = require('fs');
     const vm = require('vm');
@@ -385,12 +423,36 @@ def test_realtime_synchronization():
     const clientB = createClient('client-b');
 
     let clientBReceivedMove = false;
+    let clientBReceivedToggle = false;
+    let clientBReceivedAdd = false;
+    let clientBReceivedUpdate = false;
+    let clientBReceivedDelete = false;
     let clientBReceivedStroke = false;
 
     clientB.init({
       onMoveItem: (data) => {
         if (data.source.itemId === 'bio_01_th' && data.target.targetDateKey === '2025-08-16') {
           clientBReceivedMove = true;
+        }
+      },
+      onToggleCompleted: (data) => {
+        if (data.itemId === 'bio_01_th' && data.completed === true) {
+          clientBReceivedToggle = true;
+        }
+      },
+      onAddItem: (data) => {
+        if (data.item.id === 'custom_101') {
+          clientBReceivedAdd = true;
+        }
+      },
+      onUpdateItem: (data) => {
+        if (data.item.id === 'custom_101' && data.item.title === 'Updated Title') {
+          clientBReceivedUpdate = true;
+        }
+      },
+      onDeleteItem: (data) => {
+        if (data.itemId === 'custom_101') {
+          clientBReceivedDelete = true;
         }
       },
       onStrokeAdd: (data) => {
@@ -402,16 +464,22 @@ def test_realtime_synchronization():
 
     clientA.init({});
 
-    // Client A broadcasts move and stroke
+    // Client A broadcasts full event spectrum
     clientA.broadcastMove({ itemId: 'bio_01_th' }, { targetDateKey: '2025-08-16' });
+    clientA.broadcastToggle({ itemId: 'bio_01_th', completed: true });
+    clientA.broadcastAdd({ item: { id: 'custom_101', title: 'New Item' } });
+    clientA.broadcastUpdate({ item: { id: 'custom_101', title: 'Updated Title' } });
+    clientA.broadcastDelete({ itemId: 'custom_101' });
     clientA.broadcastStroke({ periodIndex: 0, stroke: { tool: 'pen', points: [[1, 2], [3, 4]] } });
 
     setTimeout(() => {
-      if (clientBReceivedMove && clientBReceivedStroke) {
+      const allPassed = clientBReceivedMove && clientBReceivedToggle && clientBReceivedAdd &&
+                        clientBReceivedUpdate && clientBReceivedDelete && clientBReceivedStroke;
+      if (allPassed) {
         console.log('SIMULATION_PASSED');
         process.exit(0);
       } else {
-        console.error('FAILED: move=' + clientBReceivedMove + ' stroke=' + clientBReceivedStroke);
+        console.error('FAILED simulation check');
         process.exit(1);
       }
     }, 50);
@@ -419,7 +487,7 @@ def test_realtime_synchronization():
 
     res = subprocess.run(["node", "-e", node_test_script], cwd=DIR, capture_output=True, text=True, timeout=10)
     assert "SIMULATION_PASSED" in res.stdout, f"Multi-device simulation failed: {res.stderr or res.stdout}"
-    print("✓ Multi-device simulation verified: zero-latency message serialization and dispatch confirmed.")
+    print("✓ Multi-device simulation verified: zero-latency move, toggle, add, update, delete, and stroke confirmed.")
 
 if __name__ == "__main__":
     test_files_exist()

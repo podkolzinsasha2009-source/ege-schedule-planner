@@ -560,6 +560,22 @@
           </div>
         </div>
 
+        <!-- Опциональное подключение Google Firebase RTDB -->
+        <div class="sync-card sync-firebase-card">
+          <div class="sync-card-header">
+            <span class="sync-card-badge firebase">🔥 Google Firebase</span>
+            <span class="sync-card-label" id="sync-firebase-status">Не настроен</span>
+          </div>
+          <p class="sync-card-desc">
+            По умолчанию синхронизация работает бесплатно через WSS MQTT без регистрации. При необходимости вы можете указать свой URL базы Firebase Realtime Database.
+          </p>
+          <div class="sync-firebase-row">
+            <input type="url" id="sync-firebase-input" class="sync-input" placeholder="https://your-project-default-rtdb.firebaseio.com" spellcheck="false">
+            <button id="sync-firebase-save-btn" class="btn btn-outline" title="Сохранить и подключить базу Firebase">Сохранить</button>
+            <button id="sync-firebase-clear-btn" class="btn btn-outline danger" title="Очистить и вернуться на MQTT">✕</button>
+          </div>
+        </div>
+
         <!-- Список возможностей синхронизации -->
         <div class="sync-features-note">
           <div class="feature-item">✓ <strong>Drag & Drop</strong>: перенос уроков между днями отражается на всех экранах (&lt;50 мс)</div>

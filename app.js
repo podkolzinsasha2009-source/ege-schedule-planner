@@ -162,6 +162,14 @@
       renderCalendar();
       renderBacklog();
       renderPeriodsNav();
+      if (window.SyncEngine) {
+        window.SyncEngine.broadcastFullState({
+          periods: state.periods,
+          backlog: state.backlog,
+          currentPeriodIndex: state.currentPeriodIndex,
+          drawings: window.GoodNotesStylus ? window.GoodNotesStylus.getDrawingsBackup() : {}
+        });
+      }
     }
   }
 
@@ -557,6 +565,13 @@
             saveState();
             renderCalendar();
             renderBacklog();
+            if (window.SyncEngine) {
+              window.SyncEngine.broadcastDelete({
+                itemId: comp.id,
+                dateKey: dateKey,
+                isBacklog: isBacklog
+              });
+            }
           }
         });
 
@@ -1090,6 +1105,14 @@
       state.editingItem.category = category;
       state.editingItem.time = time;
       state.editingItem.icon = icon;
+
+      if (window.SyncEngine) {
+        window.SyncEngine.broadcastUpdate({
+          item: state.editingItem,
+          dateKey: state.editingTarget ? state.editingTarget.dateKey : null,
+          isBacklog: state.editingTarget ? state.editingTarget.isBacklog : false
+        });
+      }
     } else {
       // Создание нового
       const newItem = {
@@ -1431,6 +1454,14 @@
           renderCalendar();
           renderBacklog();
           renderPeriodsNav();
+          if (window.SyncEngine) {
+            window.SyncEngine.broadcastFullState({
+              periods: state.periods,
+              backlog: state.backlog,
+              currentPeriodIndex: state.currentPeriodIndex,
+              drawings: window.GoodNotesStylus ? window.GoodNotesStylus.getDrawingsBackup() : {}
+            });
+          }
           alert('Расписание и рукописные заметки успешно импортированы!');
         } else {
           alert('Неверный формат файла!');
@@ -2016,7 +2047,17 @@
       if (pendingRemoteStrokes.length > 0) {
         const queue = pendingRemoteStrokes.slice();
         pendingRemoteStrokes = [];
-        queue.forEach(item => drawRemoteStroke(item.stroke, item.periodIndex));
+        queue.forEach(item => {
+          if (item.action === 'undo') {
+            undo(true);
+          } else if (item.action === 'clear') {
+            saveUndo();
+            clearCanvasOnly();
+            localStorage.removeItem(getPeriodKey());
+          } else if (item.stroke) {
+            drawRemoteStroke(item.stroke, item.periodIndex);
+          }
+        });
       }
     };
 
@@ -2263,14 +2304,22 @@
       drawRemoteStroke,
       remoteUndo: (periodIndex) => {
         if (periodIndex === state.currentPeriodIndex) {
-          undo(true);
+          if (isDrawing) {
+            pendingRemoteStrokes.push({ action: 'undo', periodIndex });
+          } else {
+            undo(true);
+          }
         }
       },
       remoteClear: (periodIndex) => {
         if (periodIndex === state.currentPeriodIndex) {
-          saveUndo();
-          clearCanvasOnly();
-          localStorage.removeItem(getPeriodKey());
+          if (isDrawing) {
+            pendingRemoteStrokes.push({ action: 'clear', periodIndex });
+          } else {
+            saveUndo();
+            clearCanvasOnly();
+            localStorage.removeItem(getPeriodKey());
+          }
         } else {
           const p = state.periods[periodIndex];
           if (p) localStorage.removeItem(`himbiorus_notes_${p.id}`);
@@ -2401,7 +2450,30 @@
     const modalQrContainer = document.getElementById('modal-qr-container');
     const modalLinkPreview = document.getElementById('modal-link-preview');
 
+    const fbInput = document.getElementById('sync-firebase-input');
+    const fbSaveBtn = document.getElementById('sync-firebase-save-btn');
+    const fbClearBtn = document.getElementById('sync-firebase-clear-btn');
+    const fbStatus = document.getElementById('sync-firebase-status');
+
+    function updateFirebaseUI() {
+      if (!window.SyncEngine) return;
+      const fbUrl = window.SyncEngine.getFirebaseUrl();
+      if (fbInput && document.activeElement !== fbInput) {
+        fbInput.value = fbUrl || '';
+      }
+      if (fbStatus) {
+        if (fbUrl) {
+          fbStatus.textContent = '🟢 База активна';
+          fbStatus.classList.add('active');
+        } else {
+          fbStatus.textContent = 'Не настроен (MQTT)';
+          fbStatus.classList.remove('active');
+        }
+      }
+    }
+
     function updateSyncUI(status, peerCount) {
+      updateFirebaseUI();
       const isConnected = status === 'connected';
       const isConnecting = status === 'connecting';
 
@@ -2523,6 +2595,24 @@
       }
     });
 
+    fbSaveBtn?.addEventListener('click', () => {
+      const url = (fbInput ? fbInput.value : '').trim();
+      if (url && !url.startsWith('http://') && !url.startsWith('https://')) {
+        alert('Пожалуйста, введите корректный URL базы Firebase (например https://my-project-default-rtdb.firebaseio.com)');
+        return;
+      }
+      window.SyncEngine.setFirebaseUrl(url);
+      updateFirebaseUI();
+      showGestureToast(url ? '🔥 Firebase RTDB подключен!' : 'Firebase отключен');
+    });
+
+    fbClearBtn?.addEventListener('click', () => {
+      window.SyncEngine.setFirebaseUrl('');
+      if (fbInput) fbInput.value = '';
+      updateFirebaseUI();
+      showGestureToast('Firebase очищен (MQTT активен)');
+    });
+
     // Инициализация движка синхронизации с обработчиками
     window.SyncEngine.init({
       onStatusChange: (status, peerCount) => {
@@ -2579,6 +2669,36 @@
         renderBacklog();
         updateProgress();
         showGestureToast('➕ Добавлен урок с другого устройства');
+      },
+
+      onUpdateItem: (data) => {
+        if (!data || !data.item || !data.item.id) return;
+        let found = false;
+        state.periods.forEach(p => {
+          Object.values(p.days || {}).forEach(day => {
+            (day.items || []).forEach(it => {
+              if (it.id === data.item.id) {
+                Object.assign(it, data.item);
+                found = true;
+              }
+            });
+          });
+        });
+        if (!found && state.backlog) {
+          state.backlog.forEach(it => {
+            if (it.id === data.item.id) {
+              Object.assign(it, data.item);
+              found = true;
+            }
+          });
+        }
+        if (found) {
+          saveState();
+          renderCalendar();
+          renderBacklog();
+          updateProgress();
+          showGestureToast('✏️ Урок изменен с другого устройства');
+        }
       },
 
       onDeleteItem: (data) => {

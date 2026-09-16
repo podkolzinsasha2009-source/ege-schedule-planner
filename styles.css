@@ -3129,6 +3129,37 @@ body.dark-mode .mob-day-chip.active {
   box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
 }
 
+.sync-card-desc {
+  font-size: 0.8rem;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.sync-firebase-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.sync-card-badge.firebase {
+  background: #ea580c;
+}
+
+.sync-card-label.active {
+  color: #10b981;
+}
+
+.btn-outline.danger {
+  color: #ef4444;
+  border-color: #fca5a5;
+}
+
+.btn-outline.danger:hover {
+  background: #fef2f2;
+  border-color: #ef4444;
+}
+
 .sync-features-note {
   background: rgba(79, 70, 229, 0.05);
   border: 1px solid rgba(79, 70, 229, 0.15);
