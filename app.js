@@ -31,7 +31,8 @@
     review: 'Разбор',
     attestation: 'Аттестация',
     credit: 'Зачёт',
-    payment: 'Оплата'
+    payment: 'Оплата',
+    event: 'Событие'
   };
 
   const ICONS = {
@@ -184,6 +185,29 @@
     const updates = { 'meta/fixSep10': true };
     toArray(day && day.items).forEach(it => {
       if (items[it.id] && items[it.id].date === '2026-10-10') updates[`items/${it.id}/date`] = '2026-09-10';
+    });
+    Store.update(updates);
+  }
+
+  // Исправления после сверки с PDF: неверные предметы у пробников и зачётов, лишние «+»,
+  // выдуманные тесты к «Интенсиву по ИС». Меняем поле, только если в комнате
+  // всё ещё старое значение, — ручные правки пользователя не трогаем.
+  const PDF_FIXES = {"changes":{"comp-hw-p9_01_r1":{"subtitle":["9 задание + 10 задание + сочинение ЕГЭ. Нетиповый вебчик","9 задание + 10 задание + сочинение ЕГЭ. Base"]},"comp-test-p2_05_c1":{"subtitle":["Чистые вещества и смеси. Растворы. Массовая доля. Задача 26.","Чистые вещества и смеси. Растворы. Виды растворов. Массовая доля. Задача 26."]},"p10_07_c1":{"icon":["plus",null]},"p11_04_c1":{"icon":["plus",null]},"p11_21_c1":{"icon":["plus",null]},"p1_15_b1":{"icon":["plus",null]},"p1_16_c1":{"icon":["plus",null]},"p1_17_r1":{"icon":["plus",null]},"p1_23_c1":{"icon":["plus",null]},"p1_30_c1":{"icon":["plus",null]},"p2_05_c1":{"subtitle":["Чистые вещества и смеси. Растворы. Массовая доля. Задача 26.","Чистые вещества и смеси. Растворы. Виды растворов. Массовая доля. Задача 26."]},"p3_02_b1":{"subject":["bio","chem"],"subtitle":["Биология","Химия"]},"p3_04_c1":{"icon":["plus",null]},"p3_27_c1":{"icon":["plus",null]},"p4_01_c1":{"icon":["plus",null]},"p4_15_b2":{"subject":["bio","rus"],"subtitle":["Биология","Русский язык"]},"p4_17_c1":{"subject":["chem","bio"],"subtitle":["Химия","Биология"]},"p4_18_c1":{"icon":["plus",null]},"p5_08_b1":{"subject":["bio","chem"],"subtitle":["Биология","Химия"]},"p5_15_b1":{"subject":["bio","rus"],"subtitle":["Биология","Русский язык"]},"p5_15_c1":{"icon":["plus",null]},"p6_01_r1":{"category":["review","event"]},"p6_02_r1":{"category":["review","event"]},"p6_13_c1":{"icon":["plus",null]},"p6_24_r1":{"category":["review","event"]},"p6_25_r1":{"category":["review","event"]},"p6_26_r1":{"category":["review","event"]},"p6_27_r1":{"category":["review","event"]},"p6_28_r1":{"category":["review","event"]},"p6_29_c1":{"icon":["plus",null]},"p6_29_r1":{"category":["review","event"]},"p6_30_r1":{"category":["review","event"]},"p7_06_b1":{"subject":["bio","chem"],"subtitle":["Биология","Химия"]},"p7_10_c1":{"icon":["plus",null]},"p7_15_c1":{"subject":["chem","rus"],"subtitle":["Химия","Русский язык"]},"p7_27_c1":{"icon":["plus",null]},"p8_15_b1":{"subject":["bio","rus"],"subtitle":["Биология","Русский язык"]},"p8_24_c1":{"icon":["plus",null]},"p9_01_r1":{"subtitle":["9 задание + 10 задание + сочинение ЕГЭ. Нетиповый вебчик","9 задание + 10 задание + сочинение ЕГЭ. Base"]},"p9_06_c1":{"subject":["chem","bio"],"subtitle":["Химия","Биология"]},"p9_07_c1":{"icon":["plus",null]},"p9_15_b2":{"subject":["bio","rus"],"subtitle":["Биология","Русский язык"]},"p9_21_c1":{"icon":["plus",null]}},"removed":["comp-test-p6_01_r1","comp-test-p6_02_r1","comp-test-p6_24_r1","comp-test-p6_25_r1","comp-test-p6_26_r1","comp-test-p6_27_r1","comp-test-p6_28_r1","comp-test-p6_29_r1","comp-test-p6_30_r1"]};
+
+  function migratePdfCheck() {
+    const items = Store.get('items');
+    if (!items || Store.get('meta/fixPdf2026')) return;
+    const updates = { 'meta/fixPdf2026': true };
+    Object.keys(PDF_FIXES.changes).forEach(id => {
+      const item = items[id];
+      if (!item) return;
+      Object.keys(PDF_FIXES.changes[id]).forEach(field => {
+        const [from, to] = PDF_FIXES.changes[id][field];
+        if ((item[field] == null ? null : item[field]) === from) updates[`items/${id}/${field}`] = to;
+      });
+    });
+    PDF_FIXES.removed.forEach(id => {
+      if (items[id] && !items[id].completed) updates[`items/${id}`] = null;
     });
     Store.update(updates);
   }
@@ -1139,6 +1163,7 @@
       const roots = new Set(paths.map(p => p.split('/').filter(Boolean)[0] || '/'));
       if (roots.has('/') || roots.has('items')) {
         migrateSeptember10();
+        migratePdfCheck();
         requestRender();
       }
       if (roots.has('/') || roots.has('presence')) renderSyncStatus();

@@ -46,7 +46,7 @@ window.COURSE_DATA = [
             "subject": "bio",
             "category": "webinar",
             "time": null,
-            "icon": "plus",
+            "icon": null,
             "completed": false,
             "isCompanion": false
           },
@@ -200,7 +200,7 @@ window.COURSE_DATA = [
             "subject": "chem",
             "category": "webinar",
             "time": null,
-            "icon": "plus",
+            "icon": null,
             "completed": false,
             "isCompanion": false
           },
@@ -252,7 +252,7 @@ window.COURSE_DATA = [
             "subject": "rus",
             "category": "webinar",
             "time": null,
-            "icon": "plus",
+            "icon": null,
             "completed": false,
             "isCompanion": false
           },
@@ -581,7 +581,7 @@ window.COURSE_DATA = [
             "subject": "chem",
             "category": "webinar",
             "time": null,
-            "icon": "plus",
+            "icon": null,
             "completed": false,
             "isCompanion": false
           }
@@ -963,7 +963,7 @@ window.COURSE_DATA = [
             "subject": "chem",
             "category": "webinar",
             "time": null,
-            "icon": "plus",
+            "icon": null,
             "completed": false,
             "isCompanion": false
           }
@@ -1281,7 +1281,7 @@ window.COURSE_DATA = [
           {
             "id": "p2_05_c1",
             "title": "Теория №7",
-            "subtitle": "Чистые вещества и смеси. Растворы. Массовая доля. Задача 26.",
+            "subtitle": "Чистые вещества и смеси. Растворы. Виды растворов. Массовая доля. Задача 26.",
             "subject": "chem",
             "category": "theory",
             "time": null,
@@ -1292,7 +1292,7 @@ window.COURSE_DATA = [
           {
             "id": "comp-test-p2_05_c1",
             "title": "Тест: Теория №7",
-            "subtitle": "Чистые вещества и смеси. Растворы. Массовая доля. Задача 26.",
+            "subtitle": "Чистые вещества и смеси. Растворы. Виды растворов. Массовая доля. Задача 26.",
             "subject": "chem",
             "category": "test",
             "time": null,
@@ -2448,7 +2448,7 @@ window.COURSE_DATA = [
             "subject": "chem",
             "category": "webinar",
             "time": null,
-            "icon": "plus",
+            "icon": null,
             "completed": false,
             "isCompanion": false
           }
@@ -2662,8 +2662,8 @@ window.COURSE_DATA = [
           {
             "id": "p3_02_b1",
             "title": "Зачёт №2 (до 11.10)",
-            "subtitle": "Биология",
-            "subject": "bio",
+            "subtitle": "Химия",
+            "subject": "chem",
             "category": "credit",
             "time": null,
             "icon": "check",
@@ -2805,7 +2805,7 @@ window.COURSE_DATA = [
             "subject": "chem",
             "category": "webinar",
             "time": null,
-            "icon": "plus",
+            "icon": null,
             "completed": false,
             "isCompanion": false
           }
@@ -3454,8 +3454,8 @@ window.COURSE_DATA = [
           {
             "id": "p4_15_b2",
             "title": "Пробник №3",
-            "subtitle": "Биология",
-            "subject": "bio",
+            "subtitle": "Русский язык",
+            "subject": "rus",
             "category": "mock",
             "time": null,
             "icon": null,
@@ -3559,8 +3559,8 @@ window.COURSE_DATA = [
           {
             "id": "p4_17_c1",
             "title": "Зачет №2 до 25.10",
-            "subtitle": "Химия",
-            "subject": "chem",
+            "subtitle": "Биология",
+            "subject": "bio",
             "category": "credit",
             "time": null,
             "icon": "check",
@@ -3627,7 +3627,7 @@ window.COURSE_DATA = [
             "subject": "chem",
             "category": "webinar",
             "time": null,
-            "icon": "plus",
+            "icon": null,
             "completed": false,
             "isCompanion": false
           }
@@ -4365,7 +4365,7 @@ window.COURSE_DATA = [
             "subject": "chem",
             "category": "webinar",
             "time": null,
-            "icon": "plus",
+            "icon": null,
             "completed": false,
             "isCompanion": false
           }
@@ -4747,8 +4747,8 @@ window.COURSE_DATA = [
           {
             "id": "p5_08_b1",
             "title": "Онлайн-разбор пробника №6",
-            "subtitle": "Биология",
-            "subject": "bio",
+            "subtitle": "Химия",
+            "subject": "chem",
             "category": "webinar",
             "time": null,
             "icon": "plus",
@@ -5164,15 +5164,15 @@ window.COURSE_DATA = [
             "subject": "chem",
             "category": "webinar",
             "time": null,
-            "icon": "plus",
+            "icon": null,
             "completed": false,
             "isCompanion": false
           },
           {
             "id": "p5_15_b1",
             "title": "Пробник №4",
-            "subtitle": "Биология",
-            "subject": "bio",
+            "subtitle": "Русский язык",
+            "subject": "rus",
             "category": "mock",
             "time": null,
             "icon": null,
@@ -5710,23 +5710,11 @@ window.COURSE_DATA = [
             "title": "Интенсив по ИС",
             "subtitle": "Русский язык",
             "subject": "rus",
-            "category": "review",
+            "category": "event",
             "time": null,
             "icon": null,
             "completed": false,
             "isCompanion": false
-          },
-          {
-            "id": "comp-test-p6_24_r1",
-            "title": "Тест: Интенсив по ИС",
-            "subtitle": "Русский язык",
-            "subject": "rus",
-            "category": "test",
-            "time": null,
-            "icon": null,
-            "completed": false,
-            "isCompanion": true,
-            "parentId": "p6_24_r1"
           }
         ]
       },
@@ -5763,23 +5751,11 @@ window.COURSE_DATA = [
             "title": "Интенсив по ИС",
             "subtitle": "Русский язык",
             "subject": "rus",
-            "category": "review",
+            "category": "event",
             "time": null,
             "icon": null,
             "completed": false,
             "isCompanion": false
-          },
-          {
-            "id": "comp-test-p6_25_r1",
-            "title": "Тест: Интенсив по ИС",
-            "subtitle": "Русский язык",
-            "subject": "rus",
-            "category": "test",
-            "time": null,
-            "icon": null,
-            "completed": false,
-            "isCompanion": true,
-            "parentId": "p6_25_r1"
           }
         ]
       },
@@ -5816,23 +5792,11 @@ window.COURSE_DATA = [
             "title": "Интенсив по ИС",
             "subtitle": "Русский язык",
             "subject": "rus",
-            "category": "review",
+            "category": "event",
             "time": null,
             "icon": null,
             "completed": false,
             "isCompanion": false
-          },
-          {
-            "id": "comp-test-p6_26_r1",
-            "title": "Тест: Интенсив по ИС",
-            "subtitle": "Русский язык",
-            "subject": "rus",
-            "category": "test",
-            "time": null,
-            "icon": null,
-            "completed": false,
-            "isCompanion": true,
-            "parentId": "p6_26_r1"
           }
         ]
       },
@@ -5869,23 +5833,11 @@ window.COURSE_DATA = [
             "title": "Интенсив по ИС",
             "subtitle": "Русский язык",
             "subject": "rus",
-            "category": "review",
+            "category": "event",
             "time": null,
             "icon": null,
             "completed": false,
             "isCompanion": false
-          },
-          {
-            "id": "comp-test-p6_27_r1",
-            "title": "Тест: Интенсив по ИС",
-            "subtitle": "Русский язык",
-            "subject": "rus",
-            "category": "test",
-            "time": null,
-            "icon": null,
-            "completed": false,
-            "isCompanion": true,
-            "parentId": "p6_27_r1"
           }
         ]
       },
@@ -5979,23 +5931,11 @@ window.COURSE_DATA = [
             "title": "Интенсив по ИС",
             "subtitle": "Русский язык",
             "subject": "rus",
-            "category": "review",
+            "category": "event",
             "time": null,
             "icon": null,
             "completed": false,
             "isCompanion": false
-          },
-          {
-            "id": "comp-test-p6_28_r1",
-            "title": "Тест: Интенсив по ИС",
-            "subtitle": "Русский язык",
-            "subject": "rus",
-            "category": "test",
-            "time": null,
-            "icon": null,
-            "completed": false,
-            "isCompanion": true,
-            "parentId": "p6_28_r1"
           }
         ]
       },
@@ -6022,7 +5962,7 @@ window.COURSE_DATA = [
             "subject": "chem",
             "category": "webinar",
             "time": null,
-            "icon": "plus",
+            "icon": null,
             "completed": false,
             "isCompanion": false
           },
@@ -6031,23 +5971,11 @@ window.COURSE_DATA = [
             "title": "Интенсив по ИС",
             "subtitle": "Русский язык",
             "subject": "rus",
-            "category": "review",
+            "category": "event",
             "time": null,
             "icon": null,
             "completed": false,
             "isCompanion": false
-          },
-          {
-            "id": "comp-test-p6_29_r1",
-            "title": "Тест: Интенсив по ИС",
-            "subtitle": "Русский язык",
-            "subject": "rus",
-            "category": "test",
-            "time": null,
-            "icon": null,
-            "completed": false,
-            "isCompanion": true,
-            "parentId": "p6_29_r1"
           }
         ]
       },
@@ -6084,23 +6012,11 @@ window.COURSE_DATA = [
             "title": "Интенсив по ИС",
             "subtitle": "Русский язык",
             "subject": "rus",
-            "category": "review",
+            "category": "event",
             "time": null,
             "icon": null,
             "completed": false,
             "isCompanion": false
-          },
-          {
-            "id": "comp-test-p6_30_r1",
-            "title": "Тест: Интенсив по ИС",
-            "subtitle": "Русский язык",
-            "subject": "rus",
-            "category": "test",
-            "time": null,
-            "icon": null,
-            "completed": false,
-            "isCompanion": true,
-            "parentId": "p6_30_r1"
           }
         ]
       },
@@ -6137,23 +6053,11 @@ window.COURSE_DATA = [
             "title": "Интенсив по ИС",
             "subtitle": "Русский язык",
             "subject": "rus",
-            "category": "review",
+            "category": "event",
             "time": null,
             "icon": null,
             "completed": false,
             "isCompanion": false
-          },
-          {
-            "id": "comp-test-p6_01_r1",
-            "title": "Тест: Интенсив по ИС",
-            "subtitle": "Русский язык",
-            "subject": "rus",
-            "category": "test",
-            "time": null,
-            "icon": null,
-            "completed": false,
-            "isCompanion": true,
-            "parentId": "p6_01_r1"
           }
         ]
       },
@@ -6212,23 +6116,11 @@ window.COURSE_DATA = [
             "title": "Итоговое сочинение",
             "subtitle": "Русский язык",
             "subject": "rus",
-            "category": "review",
+            "category": "event",
             "time": null,
             "icon": null,
             "completed": false,
             "isCompanion": false
-          },
-          {
-            "id": "comp-test-p6_02_r1",
-            "title": "Тест: Итоговое сочинение",
-            "subtitle": "Русский язык",
-            "subject": "rus",
-            "category": "test",
-            "time": null,
-            "icon": null,
-            "completed": false,
-            "isCompanion": true,
-            "parentId": "p6_02_r1"
           },
           {
             "id": "p6_02_r2",
@@ -6838,7 +6730,7 @@ window.COURSE_DATA = [
             "subject": "chem",
             "category": "webinar",
             "time": null,
-            "icon": "plus",
+            "icon": null,
             "completed": false,
             "isCompanion": false
           }
@@ -6933,8 +6825,8 @@ window.COURSE_DATA = [
           {
             "id": "p7_15_c1",
             "title": "Пробник №5",
-            "subtitle": "Химия",
-            "subject": "chem",
+            "subtitle": "Русский язык",
+            "subject": "rus",
             "category": "mock",
             "time": null,
             "icon": null,
@@ -7546,7 +7438,7 @@ window.COURSE_DATA = [
             "subject": "chem",
             "category": "webinar",
             "time": null,
-            "icon": "plus",
+            "icon": null,
             "completed": false,
             "isCompanion": false
           },
@@ -7708,8 +7600,8 @@ window.COURSE_DATA = [
           {
             "id": "p7_06_b1",
             "title": "Пробник №11",
-            "subtitle": "Биология",
-            "subject": "bio",
+            "subtitle": "Химия",
+            "subject": "chem",
             "category": "mock",
             "time": null,
             "icon": null,
@@ -7887,7 +7779,7 @@ window.COURSE_DATA = [
             "subject": "chem",
             "category": "webinar",
             "time": null,
-            "icon": "plus",
+            "icon": null,
             "completed": false,
             "isCompanion": false
           }
@@ -8185,8 +8077,8 @@ window.COURSE_DATA = [
           {
             "id": "p8_15_b1",
             "title": "Пробник №6",
-            "subtitle": "Биология",
-            "subject": "bio",
+            "subtitle": "Русский язык",
+            "subject": "rus",
             "category": "mock",
             "time": null,
             "icon": null,
@@ -8686,7 +8578,7 @@ window.COURSE_DATA = [
             "subject": "chem",
             "category": "webinar",
             "time": null,
-            "icon": "plus",
+            "icon": null,
             "completed": false,
             "isCompanion": false
           },
@@ -9086,7 +8978,7 @@ window.COURSE_DATA = [
           {
             "id": "p9_01_r1",
             "title": "Практика №31",
-            "subtitle": "9 задание + 10 задание + сочинение ЕГЭ. Нетиповый вебчик",
+            "subtitle": "9 задание + 10 задание + сочинение ЕГЭ. Base",
             "subject": "rus",
             "category": "practice",
             "time": null,
@@ -9097,7 +8989,7 @@ window.COURSE_DATA = [
           {
             "id": "comp-hw-p9_01_r1",
             "title": "Письменное ДЗ: Практика №31",
-            "subtitle": "9 задание + 10 задание + сочинение ЕГЭ. Нетиповый вебчик",
+            "subtitle": "9 задание + 10 задание + сочинение ЕГЭ. Base",
             "subject": "rus",
             "category": "homework",
             "time": null,
@@ -9361,8 +9253,8 @@ window.COURSE_DATA = [
           {
             "id": "p9_06_c1",
             "title": "Зачет №3 до 14.02",
-            "subtitle": "Химия",
-            "subject": "chem",
+            "subtitle": "Биология",
+            "subject": "bio",
             "category": "credit",
             "time": null,
             "icon": "check",
@@ -9429,7 +9321,7 @@ window.COURSE_DATA = [
             "subject": "chem",
             "category": "webinar",
             "time": null,
-            "icon": "plus",
+            "icon": null,
             "completed": false,
             "isCompanion": false
           }
@@ -9890,8 +9782,8 @@ window.COURSE_DATA = [
           {
             "id": "p9_15_b2",
             "title": "Пробник №7",
-            "subtitle": "Биология",
-            "subject": "bio",
+            "subtitle": "Русский язык",
+            "subject": "rus",
             "category": "mock",
             "time": null,
             "icon": null,
@@ -10176,7 +10068,7 @@ window.COURSE_DATA = [
             "subject": "chem",
             "category": "webinar",
             "time": null,
-            "icon": "plus",
+            "icon": null,
             "completed": false,
             "isCompanion": false
           }
@@ -10907,7 +10799,7 @@ window.COURSE_DATA = [
             "subject": "chem",
             "category": "webinar",
             "time": null,
-            "icon": "plus",
+            "icon": null,
             "completed": false,
             "isCompanion": false
           }
@@ -11705,7 +11597,7 @@ window.COURSE_DATA = [
             "subject": "chem",
             "category": "webinar",
             "time": null,
-            "icon": "plus",
+            "icon": null,
             "completed": false,
             "isCompanion": false
           }
@@ -12408,7 +12300,7 @@ window.COURSE_DATA = [
             "subject": "chem",
             "category": "webinar",
             "time": null,
-            "icon": "plus",
+            "icon": null,
             "completed": false,
             "isCompanion": false
           }

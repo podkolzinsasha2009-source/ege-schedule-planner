@@ -66,7 +66,7 @@ def build_all_periods():
         "2026-08-13": {"dayName": "ЧТ", "dayNum": 13, "month": "авг", "items": []},
         "2026-08-14": {"dayName": "ПТ", "dayNum": 14, "month": "авг", "items": []},
         "2026-08-15": {"dayName": "СБ", "dayNum": 15, "month": "авг", "items": [
-            create_item("p1_15_b1", "Вводный вебинар", "Старт курса", "bio", "webinar", icon="plus"),
+            create_item("p1_15_b1", "Вводный вебинар", "Старт курса", "bio", "webinar"),
             create_item("p1_15_b2", "Теория №1", "Введение в биологию №1, 22 задание (часть 1)", "bio", "theory"),
             create_item("p1_15_b3", "Пробник №1 (входной)", "Биология", "bio", "mock"),
             create_item("p1_15_c1", "Теория №1", "Введение в химию. Работа с ПТ. Строение атома.", "chem", "theory"),
@@ -77,12 +77,12 @@ def build_all_periods():
         ]},
         "2026-08-16": {"dayName": "ВС", "dayNum": 16, "month": "авг", "items": [
             create_item("p1_16_b1", "Организационный зачет №1", "до 30.08", "bio", "credit", icon="check"),
-            create_item("p1_16_c1", "Вводный вебинар", "Старт курса", "chem", "webinar", icon="plus"),
+            create_item("p1_16_c1", "Вводный вебинар", "Старт курса", "chem", "webinar"),
             create_item("p1_16_c2", "Организационный зачет №1", "до 30.08", "chem", "credit", icon="check"),
             create_item("p1_16_r1", "Теория №2", "Сочинение ЕГЭ", "rus", "theory"),
         ]},
         "2026-08-17": {"dayName": "ПН", "dayNum": 17, "month": "авг", "items": [
-            create_item("p1_17_r1", "Вводный вебинар", "Старт курса", "rus", "webinar", icon="plus"),
+            create_item("p1_17_r1", "Вводный вебинар", "Старт курса", "rus", "webinar"),
             create_item("p1_17_b1", "Теория №2", "Введение в биологию №2", "bio", "theory"),
         ]},
         "2026-08-18": {"dayName": "ВТ", "dayNum": 18, "month": "авг", "items": [
@@ -107,7 +107,7 @@ def build_all_periods():
             create_item("p1_22_r1", "Теория №5", "5 задание", "rus", "theory"),
         ]},
         "2026-08-23": {"dayName": "ВС", "dayNum": 23, "month": "авг", "items": [
-            create_item("p1_23_c1", "Клуб укротителей задач №1", "Вся математика для химиков (часть 1).", "chem", "webinar", icon="plus"),
+            create_item("p1_23_c1", "Клуб укротителей задач №1", "Вся математика для химиков (часть 1).", "chem", "webinar"),
         ]},
         "2026-08-24": {"dayName": "ПН", "dayNum": 24, "month": "авг", "items": [
             create_item("p1_24_b1", "Теория №4", "Биохимия клетки №1", "bio", "theory"),
@@ -136,7 +136,7 @@ def build_all_periods():
             create_item("p1_29_c2", "Теория №6", "Номенклатура бинарных соединений. Валентность. Структурные формулы.", "chem", "theory"),
         ]},
         "2026-08-30": {"dayName": "ВС", "dayNum": 30, "month": "авг", "items": [
-            create_item("p1_30_c1", "Клуб укротителей задач №2", "Вся математика для химиков (часть 2).", "chem", "webinar", icon="plus"),
+            create_item("p1_30_c1", "Клуб укротителей задач №2", "Вся математика для химиков (часть 2).", "chem", "webinar"),
         ]}
     }
     periods.append({"id": "p01", "name": "15 августа — 30 августа", "days": p1_days})
@@ -169,7 +169,7 @@ def build_all_periods():
         "2026-09-05": {"dayName": "СБ", "dayNum": 5, "month": "сен", "items": [
             create_item("p2_05_b1", "Разбор входного пробника с Асифом", "Биология", "bio", "webinar", time="14:00", icon="plus"),
             create_item("p2_05_b2", "Теория №7", "Строение клетки №2", "bio", "theory"),
-            create_item("p2_05_c1", "Теория №7", "Чистые вещества и смеси. Растворы. Массовая доля. Задача 26.", "chem", "theory"),
+            create_item("p2_05_c1", "Теория №7", "Чистые вещества и смеси. Растворы. Виды растворов. Массовая доля. Задача 26.", "chem", "theory"),
             create_item("p2_05_c2", "Теория №8", "Классификация и номенклатура неорганических соединений.", "chem", "theory"),
         ]},
         "2026-09-06": {"dayName": "ВС", "dayNum": 6, "month": "сен", "items": []},
@@ -271,7 +271,7 @@ def build_all_periods():
             create_item("p3_26_r2", "Теория №14", "6 задание", "rus", "theory"),
         ]},
         "2026-09-27": {"dayName": "ВС", "dayNum": 27, "month": "сен", "items": [
-            create_item("p3_27_c1", "Клуб укротителей задач №3", "Задача 26. Молярные концентрации.", "chem", "webinar", icon="plus"),
+            create_item("p3_27_c1", "Клуб укротителей задач №3", "Задача 26. Молярные концентрации.", "chem", "webinar"),
         ]},
 
         "2026-09-28": {"dayName": "ПН", "dayNum": 28, "month": "сен", "items": [
@@ -291,7 +291,7 @@ def build_all_periods():
         ]},
         "2026-10-02": {"dayName": "ПТ", "dayNum": 2, "month": "окт", "items": [
             create_item("p3_02_c1", "Практика №14", "Химические свойства оснований.", "chem", "practice"),
-            create_item("p3_02_b1", "Зачёт №2 (до 11.10)", "Биология", "bio", "credit", icon="check"),
+            create_item("p3_02_b1", "Зачёт №2 (до 11.10)", "Химия", "chem", "credit", icon="check"),
             create_item("p3_02_r1", "Тест №2", "Русский язык", "rus", "test"),
         ]},
         "2026-10-03": {"dayName": "СБ", "dayNum": 3, "month": "окт", "items": [
@@ -302,7 +302,7 @@ def build_all_periods():
             create_item("p3_03_r1", "Теория №17", "22 задание", "rus", "theory"),
         ]},
         "2026-10-04": {"dayName": "ВС", "dayNum": 4, "month": "окт", "items": [
-            create_item("p3_04_c1", "Клуб укротителей задач №4", "Формулы в химии. Дополнительная отработка.", "chem", "webinar", icon="plus"),
+            create_item("p3_04_c1", "Клуб укротителей задач №4", "Формулы в химии. Дополнительная отработка.", "chem", "webinar"),
         ]},
 
         "2026-10-05": {"dayName": "ПН", "dayNum": 5, "month": "окт", "items": [
@@ -362,7 +362,7 @@ def build_all_periods():
         ]},
         "2026-10-15": {"dayName": "ЧТ", "dayNum": 15, "month": "окт", "items": [
             create_item("p4_15_b1", "Практика №16", "Бактерии и вирусы", "bio", "practice", time="16:00", icon="clock"),
-            create_item("p4_15_b2", "Пробник №3", "Биология", "bio", "mock"),
+            create_item("p4_15_b2", "Пробник №3", "Русский язык", "rus", "mock"),
         ]},
         "2026-10-16": {"dayName": "ПТ", "dayNum": 16, "month": "окт", "items": [
             create_item("p4_16_c1", "Практика №18", "Химические свойства средних солей.", "chem", "practice", time="16:00", icon="clock"),
@@ -371,12 +371,12 @@ def build_all_periods():
         "2026-10-17": {"dayName": "СБ", "dayNum": 17, "month": "окт", "items": [
             create_item("p4_17_b1", "Эвристика с Аленой", "Биология", "bio", "webinar", time="14:00", icon="plus"),
             create_item("p4_17_b2", "Теория №17", "Грибы и лишайники", "bio", "theory"),
-            create_item("p4_17_c1", "Зачет №2 до 25.10", "Химия", "chem", "credit", icon="check"),
+            create_item("p4_17_c1", "Зачет №2 до 25.10", "Биология", "bio", "credit", icon="check"),
             create_item("p4_17_c2", "Теория №19", "Химические свойства кислых, основных и комплексных солей.", "chem", "theory"),
             create_item("p4_17_c3", "Теория №20", "Задача 23. Задача 27.", "chem", "theory"),
         ]},
         "2026-10-18": {"dayName": "ВС", "dayNum": 18, "month": "окт", "items": [
-            create_item("p4_18_c1", "Клуб укротителей задач №5", "Задача 28. Дополнительная отработка.", "chem", "webinar", icon="plus"),
+            create_item("p4_18_c1", "Клуб укротителей задач №5", "Задача 28. Дополнительная отработка.", "chem", "webinar"),
         ]},
 
         "2026-10-19": {"dayName": "ПН", "dayNum": 19, "month": "окт", "items": [
@@ -436,7 +436,7 @@ def build_all_periods():
             create_item("p4_31_c2", "Теория №24", "Задача 34.1. Введение в 34 задачу. Избыток и недостаток. Расчёты по нескольким реакциям.", "chem", "theory"),
         ]},
         "2026-11-01": {"dayName": "ВС", "dayNum": 1, "month": "ноя", "items": [
-            create_item("p4_01_c1", "Клуб укротителей задач №6", "Усложнённые задачи 23 и 27.", "chem", "webinar", icon="plus"),
+            create_item("p4_01_c1", "Клуб укротителей задач №6", "Усложнённые задачи 23 и 27.", "chem", "webinar"),
         ]}
     }
     periods.append({"id": "p04", "name": "12 октября — 1 ноября", "days": p4_days})
@@ -474,7 +474,7 @@ def build_all_periods():
             create_item("p5_07_c2", "Теория №26", "Задача 34.2. Последовательность реакций. Порции. Расчёт массы конечного раствора.", "chem", "theory"),
         ]},
         "2026-11-08": {"dayName": "ВС", "dayNum": 8, "month": "ноя", "items": [
-            create_item("p5_08_b1", "Онлайн-разбор пробника №6", "Биология", "bio", "webinar", icon="plus"),
+            create_item("p5_08_b1", "Онлайн-разбор пробника №6", "Химия", "chem", "webinar", icon="plus"),
             create_item("p5_08_r1", "Разбор произведения №14", "Рассказы Бунина", "rus", "review"),
         ]},
 
@@ -509,8 +509,8 @@ def build_all_periods():
             create_item("p5_14_r1", "Теория №29", "18 задание", "rus", "theory"),
         ]},
         "2026-11-15": {"dayName": "ВС", "dayNum": 15, "month": "ноя", "items": [
-            create_item("p5_15_c1", "Клуб укротителей задач №7", "Задача 34.", "chem", "webinar", icon="plus"),
-            create_item("p5_15_b1", "Пробник №4", "Биология", "bio", "mock"),
+            create_item("p5_15_c1", "Клуб укротителей задач №7", "Задача 34.", "chem", "webinar"),
+            create_item("p5_15_b1", "Пробник №4", "Русский язык", "rus", "mock"),
         ]},
 
         "2026-11-16": {"dayName": "ПН", "dayNum": 16, "month": "ноя", "items": [
@@ -558,46 +558,46 @@ def build_all_periods():
         ]},
         "2026-11-24": {"dayName": "ВТ", "dayNum": 24, "month": "ноя", "items": [
             create_item("p6_24_b1", "Практика №26", "Эндокринная система", "bio", "practice", time="16:00", icon="clock"),
-            create_item("p6_24_r1", "Интенсив по ИС", "Русский язык", "rus", "review"),
+            create_item("p6_24_r1", "Интенсив по ИС", "Русский язык", "rus", "event"),
         ]},
         "2026-11-25": {"dayName": "СР", "dayNum": 25, "month": "ноя", "items": [
             create_item("p6_25_c1", "Практика №28", "Основы органической химии.", "chem", "practice", time="16:00", icon="clock"),
-            create_item("p6_25_r1", "Интенсив по ИС", "Русский язык", "rus", "review"),
+            create_item("p6_25_r1", "Интенсив по ИС", "Русский язык", "rus", "event"),
         ]},
         "2026-11-26": {"dayName": "ЧТ", "dayNum": 26, "month": "ноя", "items": [
             create_item("p6_26_b1", "Практика №27", "Нервная система №1", "bio", "practice", time="16:00", icon="clock"),
-            create_item("p6_26_r1", "Интенсив по ИС", "Русский язык", "rus", "review"),
+            create_item("p6_26_r1", "Интенсив по ИС", "Русский язык", "rus", "event"),
         ]},
         "2026-11-27": {"dayName": "ПТ", "dayNum": 27, "month": "ноя", "items": [
             create_item("p6_27_c1", "Практика №29", "Задача 33 (1). Атомарность. Способы нахождения формулы вещества.", "chem", "practice", time="16:00", icon="clock"),
-            create_item("p6_27_r1", "Интенсив по ИС", "Русский язык", "rus", "review"),
+            create_item("p6_27_r1", "Интенсив по ИС", "Русский язык", "rus", "event"),
         ]},
         "2026-11-28": {"dayName": "СБ", "dayNum": 28, "month": "ноя", "items": [
             create_item("p6_28_b1", "Эвристика с Аленой", "Биология", "bio", "webinar", time="14:00", icon="plus"),
             create_item("p6_28_b2", "Теория №28", "Нервная система №2", "bio", "theory"),
             create_item("p6_28_c1", "Теория №30", "Алканы.", "chem", "theory"),
             create_item("p6_28_c2", "Теория №31", "Задача 34.3. Электролиз. Растворимость. Кристаллогидраты.", "chem", "theory"),
-            create_item("p6_28_r1", "Интенсив по ИС", "Русский язык", "rus", "review"),
+            create_item("p6_28_r1", "Интенсив по ИС", "Русский язык", "rus", "event"),
         ]},
         "2026-11-29": {"dayName": "ВС", "dayNum": 29, "month": "ноя", "items": [
             create_item("p6_29_b1", "Рубежная аттестация №1 (общая биология и генетика)", "до 06.12", "bio", "attestation", icon="alert"),
-            create_item("p6_29_c1", "Клуб укротителей задач №8", "Задача 33.", "chem", "webinar", icon="plus"),
-            create_item("p6_29_r1", "Интенсив по ИС", "Русский язык", "rus", "review"),
+            create_item("p6_29_c1", "Клуб укротителей задач №8", "Задача 33.", "chem", "webinar"),
+            create_item("p6_29_r1", "Интенсив по ИС", "Русский язык", "rus", "event"),
         ]},
 
         "2026-11-30": {"dayName": "ПН", "dayNum": 30, "month": "ноя", "items": [
             create_item("p6_30_b1", "Теория №29", "Высшая нервная деятельность (ВНД)", "bio", "theory"),
-            create_item("p6_30_r1", "Интенсив по ИС", "Русский язык", "rus", "review"),
+            create_item("p6_30_r1", "Интенсив по ИС", "Русский язык", "rus", "event"),
         ]},
         "2026-12-01": {"dayName": "ВТ", "dayNum": 1, "month": "дек", "items": [
             create_item("p6_01_b1", "Практика №28", "Нервная система №2", "bio", "practice", time="16:00", icon="clock"),
-            create_item("p6_01_r1", "Интенсив по ИС", "Русский язык", "rus", "review"),
+            create_item("p6_01_r1", "Интенсив по ИС", "Русский язык", "rus", "event"),
         ]},
         "2026-12-02": {"dayName": "СР", "dayNum": 2, "month": "дек", "items": [
             create_item("p6_02_b1", "Пробник №8", "Биология", "bio", "mock"),
             create_item("p6_02_c1", "Практика №30", "Алканы.", "chem", "practice"),
             create_item("p6_02_c2", "ПЕРЕСДАЧА: Рубежная аттестация №1 (общая и неорганическая химия)", "до 09.12", "chem", "attestation", icon="alert"),
-            create_item("p6_02_r1", "Итоговое сочинение", "Русский язык", "rus", "review"),
+            create_item("p6_02_r1", "Итоговое сочинение", "Русский язык", "rus", "event"),
             create_item("p6_02_r2", "Тест №4", "Русский язык", "rus", "test"),
         ]},
         "2026-12-03": {"dayName": "ЧТ", "dayNum": 3, "month": "дек", "items": [
@@ -649,7 +649,7 @@ def build_all_periods():
         "2026-12-13": {"dayName": "ВС", "dayNum": 13, "month": "дек", "items": [
             create_item("p6_13_pay", "ОПЛАТА СЛЕДУЮЩЕГО МЕСЯЦА", "С 10.12 ДО 14.12", "general", "payment"),
             create_item("p6_13_b1", "Пересдача / Рубежная аттестация №1: Общая биология и Генетика", "до 20.12", "bio", "attestation", icon="alert"),
-            create_item("p6_13_c1", "Клуб укротителей задач №9", "Задача 34.", "chem", "webinar", icon="plus"),
+            create_item("p6_13_c1", "Клуб укротителей задач №9", "Задача 34.", "chem", "webinar"),
         ]}
     }
     periods.append({"id": "p06", "name": "23 ноября — 13 декабря", "days": p6_days})
@@ -665,7 +665,7 @@ def build_all_periods():
         ]},
         "2026-12-15": {"dayName": "ВТ", "dayNum": 15, "month": "дек", "items": [
             create_item("p7_15_b1", "Практика №32.1", "Кровеносная система №1", "bio", "practice", time="16:00", icon="clock"),
-            create_item("p7_15_c1", "Пробник №5", "Химия", "chem", "mock"),
+            create_item("p7_15_c1", "Пробник №5", "Русский язык", "rus", "mock"),
         ]},
         "2026-12-16": {"dayName": "СР", "dayNum": 16, "month": "дек", "items": [
             create_item("p7_16_c1", "Практика №34", "Задача 33 (2). Все типы расчётов в задаче 33.", "chem", "practice", time="16:00", icon="clock"),
@@ -715,7 +715,7 @@ def build_all_periods():
             create_item("p7_26_c2", "Теория №39", "Арены.", "chem", "theory"),
         ]},
         "2026-12-27": {"dayName": "ВС", "dayNum": 27, "month": "дек", "items": [
-            create_item("p7_27_c1", "Клуб укротителей задач №10", "Задачи 34.", "chem", "webinar", icon="plus"),
+            create_item("p7_27_c1", "Клуб укротителей задач №10", "Задачи 34.", "chem", "webinar"),
             create_item("p7_27_r1", "Теория №40", "23 задание", "rus", "theory"),
         ]},
 
@@ -735,7 +735,7 @@ def build_all_periods():
         "2027-01-05": {"dayName": "ВТ", "dayNum": 5, "month": "янв", "items": []},
         "2027-01-06": {"dayName": "СР", "dayNum": 6, "month": "янв", "items": [
             create_item("p7_06_c1", "Практика №38", "Алкины.", "chem", "practice"),
-            create_item("p7_06_b1", "Пробник №11", "Биология", "bio", "mock"),
+            create_item("p7_06_b1", "Пробник №11", "Химия", "chem", "mock"),
         ]},
         "2027-01-07": {"dayName": "ЧТ", "dayNum": 7, "month": "янв", "items": []},
         "2027-01-08": {"dayName": "ПТ", "dayNum": 8, "month": "янв", "items": [
@@ -750,7 +750,7 @@ def build_all_periods():
         "2027-01-10": {"dayName": "ВС", "dayNum": 10, "month": "янв", "items": [
             create_item("p7_10_pay", "ОПЛАТА СЛЕДУЮЩЕГО МЕСЯЦА", "С 10.01 ДО 14.01", "general", "payment"),
             create_item("p7_10_b1", "Рубежная аттестация №2 (анатомия и физиология человека)", "до 17.01", "bio", "attestation", icon="alert"),
-            create_item("p7_10_c1", "Клуб укротителей задач №11", "Задача 33.", "chem", "webinar", icon="plus"),
+            create_item("p7_10_c1", "Клуб укротителей задач №11", "Задача 33.", "chem", "webinar"),
         ]}
     }
     periods.append({"id": "p07", "name": "14 декабря — 10 января", "days": p7_days})
@@ -782,7 +782,7 @@ def build_all_periods():
             create_item("p8_15_c1", "Практика №41", "Задача 34.5. Введение одной переменной. Масса конечного раствора. Изменение массы раствора. Изменение массовой доли.", "chem", "practice"),
             create_item("p8_15_c2", "Зачёт №3 (до 24.01)", "Химия", "chem", "credit", icon="check"),
             create_item("p8_15_r1", "Теория №42", "5 задание", "rus", "theory"),
-            create_item("p8_15_b1", "Пробник №6", "Биология", "bio", "mock"),
+            create_item("p8_15_b1", "Пробник №6", "Русский язык", "rus", "mock"),
         ]},
         "2027-01-16": {"dayName": "СБ", "dayNum": 16, "month": "янв", "items": [
             create_item("p8_16_b1", "Разбор пробника №9 с Асифом", "Биология", "bio", "webinar", time="14:00", icon="plus"),
@@ -823,7 +823,7 @@ def build_all_periods():
         ]},
         "2027-01-24": {"dayName": "ВС", "dayNum": 24, "month": "янв", "items": [
             create_item("p8_24_b1", "Пересдача / Рубежная аттестация №2: Анатомия и физиология человека", "до 31.01", "bio", "attestation", icon="alert"),
-            create_item("p8_24_c1", "Клуб укротителей задач №12", "Задача 34.", "chem", "webinar", icon="plus"),
+            create_item("p8_24_c1", "Клуб укротителей задач №12", "Задача 34.", "chem", "webinar"),
             create_item("p8_24_r1", "Теория №46", "22 задание", "rus", "theory"),
         ]},
 
@@ -863,7 +863,7 @@ def build_all_periods():
         "2027-02-01": {"dayName": "ПН", "dayNum": 1, "month": "фев", "items": [
             create_item("p9_01_b1", "Теория №43", "Разнообразие Позвоночных", "bio", "theory"),
             create_item("p9_01_c1", "Пробник №13", "Химия", "chem", "mock"),
-            create_item("p9_01_r1", "Практика №31", "9 задание + 10 задание + сочинение ЕГЭ. Нетиповый вебчик", "rus", "practice"),
+            create_item("p9_01_r1", "Практика №31", "9 задание + 10 задание + сочинение ЕГЭ. Base", "rus", "practice"),
             create_item("p9_01_r2", "Зачетный диктант №3", "Русский язык", "rus", "credit", icon="check"),
         ]},
         "2027-02-02": {"dayName": "ВТ", "dayNum": 2, "month": "фев", "items": [
@@ -885,12 +885,12 @@ def build_all_periods():
             create_item("p9_06_b1", "Эвристика с Аленой", "Биология", "bio", "webinar", time="14:00", icon="plus"),
             create_item("p9_06_r1", "Практика №32", "К1-К6 на максимум. Сумасшедшая нарешка заданий 9-12. Веб с экспертом ЕГЭ", "rus", "practice", time="16:00", icon="clock"),
             create_item("p9_06_b2", "Теория №44", "Царство Растения, Ткани Растений", "bio", "theory"),
-            create_item("p9_06_c1", "Зачет №3 до 14.02", "Химия", "chem", "credit", icon="check"),
+            create_item("p9_06_c1", "Зачет №3 до 14.02", "Биология", "bio", "credit", icon="check"),
             create_item("p9_06_c2", "Теория №48", "Аминокислоты. Белки.", "chem", "theory"),
             create_item("p9_06_c3", "Теория №49", "Задача 34.7. Атомарность.", "chem", "theory"),
         ]},
         "2027-02-07": {"dayName": "ВС", "dayNum": 7, "month": "фев", "items": [
-            create_item("p9_07_c1", "Клуб укротителей задач №13", "Задача 34.", "chem", "webinar", icon="plus"),
+            create_item("p9_07_c1", "Клуб укротителей задач №13", "Задача 34.", "chem", "webinar"),
         ]},
 
         "2027-02-08": {"dayName": "ПН", "dayNum": 8, "month": "фев", "items": [
@@ -931,7 +931,7 @@ def build_all_periods():
             create_item("p9_15_b1", "Теория №47", "Генеративные органы растений — цветок, семя и плод", "bio", "theory"),
             create_item("p9_15_c1", "Пробник №14", "Химия", "chem", "mock"),
             create_item("p9_15_r1", "Практика №34", "13-14 задания + аргументация в сочинении. Нетиповый вебчик", "rus", "practice"),
-            create_item("p9_15_b2", "Пробник №7", "Биология", "bio", "mock"),
+            create_item("p9_15_b2", "Пробник №7", "Русский язык", "rus", "mock"),
         ]},
         "2027-02-16": {"dayName": "ВТ", "dayNum": 16, "month": "фев", "items": [
             create_item("p9_16_b1", "Практика №46", "Вегетативные органы растений — лист, Вегетативное размножение растений, Огород", "bio", "practice", time="16:00", icon="clock"),
@@ -955,7 +955,7 @@ def build_all_periods():
             create_item("p9_20_c1", "Теория №52", "Задача 34.8. Растворимость. Растворимость КГ.", "chem", "theory"),
         ]},
         "2027-02-21": {"dayName": "ВС", "dayNum": 21, "month": "фев", "items": [
-            create_item("p9_21_c1", "Клуб укротителей задач №14", "Задача 34.", "chem", "webinar", icon="plus"),
+            create_item("p9_21_c1", "Клуб укротителей задач №14", "Задача 34.", "chem", "webinar"),
         ]}
     }
     periods.append({"id": "p09", "name": "1 февраля — 21 февраля", "days": p9_days})
@@ -1022,7 +1022,7 @@ def build_all_periods():
         ]},
         "2027-03-07": {"dayName": "ВС", "dayNum": 7, "month": "мар", "items": [
             create_item("p10_07_b1", "Рубежная аттестация №3 (зоология и ботаника)", "до 14.03", "bio", "attestation", icon="alert"),
-            create_item("p10_07_c1", "Клуб укротителей задач №15", "Задачи 33 и 34.", "chem", "webinar", icon="plus"),
+            create_item("p10_07_c1", "Клуб укротителей задач №15", "Задачи 33 и 34.", "chem", "webinar"),
         ]},
 
         "2027-03-08": {"dayName": "ПН", "dayNum": 8, "month": "мар", "items": [
@@ -1096,7 +1096,7 @@ def build_all_periods():
         ]},
         "2027-03-21": {"dayName": "ВС", "dayNum": 21, "month": "мар", "items": [
             create_item("p11_21_b1", "Пересдача / Рубежная аттестация №3: Зоология и ботаника", "до 28.03", "bio", "attestation", icon="alert"),
-            create_item("p11_21_c1", "Клуб укротителей задач №16", "Задачи 33 и 34.", "chem", "webinar", icon="plus"),
+            create_item("p11_21_c1", "Клуб укротителей задач №16", "Задачи 33 и 34.", "chem", "webinar"),
         ]},
 
         "2027-03-22": {"dayName": "ПН", "dayNum": 22, "month": "мар", "items": [
@@ -1155,7 +1155,7 @@ def build_all_periods():
             create_item("p11_03_c1", "Теория №63", "Марганец. Медь. Серебро.", "chem", "theory"),
         ]},
         "2027-04-04": {"dayName": "ВС", "dayNum": 4, "month": "апр", "items": [
-            create_item("p11_04_c1", "Клуб укротителей задач №17", "Задачи 33 и 34.", "chem", "webinar", icon="plus"),
+            create_item("p11_04_c1", "Клуб укротителей задач №17", "Задачи 33 и 34.", "chem", "webinar"),
         ]}
     }
     periods.append({"id": "p11", "name": "15 марта — 4 апреля", "days": p11_days})
