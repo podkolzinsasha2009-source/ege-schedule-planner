@@ -1839,6 +1839,15 @@ body {
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 768px) {
+  .calendar-wrapper.drawing-mode .calendar-week {
+    grid-template-columns: repeat(7, minmax(130px, 1fr)) !important;
+    min-width: 960px;
+  }
 }
 
 .stylus-canvas {

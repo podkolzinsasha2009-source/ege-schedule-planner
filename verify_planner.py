@@ -245,12 +245,12 @@ def test_zero_latency_and_redesign():
     assert "touch-action: none !important" in css, "styles.css missing strict touch-action: none !important"
     print("✓ styles.css dropdown menu, slim progress bar, accordion checklists, subject pills, and zero-delay touch-action verified.")
 
-    # 4. SW v7 verification
+    # 4. SW v8 verification
     sw_path = os.path.join(DIR, "sw.js")
     with open(sw_path, "r", encoding="utf-8") as f:
         sw = f.read()
-    assert "himbiorus-pwa-v7" in sw, "sw.js missing v7 cache name"
-    print("✓ sw.js v7 cache version verified.")
+    assert "himbiorus-pwa-v8" in sw, "sw.js missing v8 cache name"
+    print("✓ sw.js v8 cache version verified.")
 
 def test_realtime_synchronization():
     # 1. sync.js Engine Verification
@@ -274,6 +274,7 @@ def test_realtime_synchronization():
     assert "MiniQR" in sync_js or "toSVG" in sync_js, "sync.js missing standalone QR code generator"
     assert "REQUEST_STATE" in sync_js and "FULL_STATE_SYNC" in sync_js, "sync.js missing state sync protocol"
     assert "MOVE_ITEM" in sync_js and "STROKE_ADD" in sync_js, "sync.js missing event protocol"
+    assert "STROKE_CHUNK" in sync_js and "STROKE_END" in sync_js, "sync.js missing real-time stroke streaming protocol"
     assert "UPDATE_ITEM" in sync_js, "sync.js missing UPDATE_ITEM protocol"
     assert "setupFirebaseSubscription" in sync_js, "sync.js missing setupFirebaseSubscription"
     assert "sendToFirebase" in sync_js, "sync.js missing sendToFirebase"
@@ -290,8 +291,11 @@ def test_realtime_synchronization():
     assert "window.SyncEngine.broadcastUpdate" in app_js, "app.js missing broadcastUpdate in saveModalForm"
     assert "window.SyncEngine.broadcastDelete" in app_js, "app.js missing broadcastDelete"
     assert "window.SyncEngine.broadcastStroke" in app_js, "app.js missing broadcastStroke in finishStroke"
+    assert "broadcastStrokeChunk" in app_js, "app.js missing broadcastStrokeChunk in pointermove streaming"
     assert "window.SyncEngine.broadcastUndo" in app_js, "app.js missing broadcastUndo"
     assert "drawRemoteStroke" in app_js, "app.js missing drawRemoteStroke in GoodNotes stylus engine"
+    assert "drawRemoteStrokeChunk" in app_js, "app.js missing drawRemoteStrokeChunk"
+    assert "finishRemoteStroke" in app_js, "app.js missing finishRemoteStroke"
     assert "remoteUndo" in app_js, "app.js missing remoteUndo"
     assert "remoteClear" in app_js, "app.js missing remoteClear"
     assert "onUpdateItem" in app_js, "app.js missing onUpdateItem handler"
@@ -336,8 +340,8 @@ def test_realtime_synchronization():
     with open(sw_path, "r", encoding="utf-8") as f:
         sw = f.read()
     assert "'./sync.js'" in sw or '"./sync.js"' in sw, "sw.js missing sync.js in ASSETS_TO_CACHE"
-    assert "himbiorus-pwa-v7" in sw, "sw.js missing v7 cache version"
-    print("✓ sw.js PWA v7 cache verified: sync.js cached for 100% offline capability.")
+    assert "himbiorus-pwa-v8" in sw, "sw.js missing v8 cache version"
+    print("✓ sw.js PWA v8 cache verified: sync.js cached for 100% offline capability.")
 
     # 6. Bit-Perfect MiniQR ISO/IEC 18004 Verification against Python qrcode
     import subprocess, json
@@ -468,8 +472,21 @@ def test_realtime_synchronization():
         if (data.periodIndex === 0 && data.stroke.tool === 'pen') {
           clientBReceivedStroke = true;
         }
+      },
+      onStrokeChunk: (data) => {
+        if (data.strokeId === 'test_strk' && data.points.length === 2) {
+          clientBReceivedChunk = true;
+        }
+      },
+      onStrokeEnd: (data) => {
+        if (data.strokeId === 'test_strk') {
+          clientBReceivedEnd = true;
+        }
       }
     });
+
+    let clientBReceivedChunk = false;
+    let clientBReceivedEnd = false;
 
     clientA.init({});
 
@@ -479,11 +496,14 @@ def test_realtime_synchronization():
     clientA.broadcastAdd({ item: { id: 'custom_101', title: 'New Item' } });
     clientA.broadcastUpdate({ item: { id: 'custom_101', title: 'Updated Title' } });
     clientA.broadcastDelete({ itemId: 'custom_101' });
+    clientA.broadcastStrokeChunk({ strokeId: 'test_strk', periodIndex: 0, tool: 'pen', points: [[1, 2], [3, 4]] });
+    clientA.broadcastStrokeEnd({ strokeId: 'test_strk', periodIndex: 0, points: [] });
     clientA.broadcastStroke({ periodIndex: 0, stroke: { tool: 'pen', points: [[1, 2], [3, 4]] } });
 
     setTimeout(() => {
       const allPassed = clientBReceivedMove && clientBReceivedToggle && clientBReceivedAdd &&
-                        clientBReceivedUpdate && clientBReceivedDelete && clientBReceivedStroke;
+                        clientBReceivedUpdate && clientBReceivedDelete && clientBReceivedStroke &&
+                        clientBReceivedChunk && clientBReceivedEnd;
       if (allPassed) {
         console.log('SIMULATION_PASSED');
         process.exit(0);

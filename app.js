@@ -443,8 +443,8 @@
         window.SyncEngine.broadcastToggle({
           itemId: item.id,
           completed: item.completed,
-          isCompanion: false,
-          parentId: null,
+          isCompanion: !!item.isCompanion,
+          parentId: item.parentId || null,
           dateKey: dateKey,
           isBacklog: isBacklog
         });
@@ -671,10 +671,10 @@
         return;
       }
 
-      // При нажатии на тело карточки — задержка 180 мс, чтобы не мешать быстрому скроллу
+      // При нажатии на тело карточки — минимальная задержка 100 мс, чтобы не мешать быстрому скроллу
       holdTimer = setTimeout(() => {
         startTouchDrag(touch);
-      }, 180);
+      }, 100);
     }, { passive: false });
 
     card.addEventListener('touchmove', (e) => {
@@ -870,14 +870,41 @@
 
     // 2. Находим основной элемент и его связанные компаньоны
     let movedItems = [];
-    const pIdx = sourceArray.findIndex(it => it.id === source.itemId);
     let originalIndices = [];
-    if (pIdx !== -1) {
-      originalIndices.push(pIdx);
-      movedItems.push(sourceArray.splice(pIdx, 1)[0]);
-    } else if (source.sourceIndex >= 0 && source.sourceIndex < sourceArray.length) {
-      originalIndices.push(source.sourceIndex);
-      movedItems.push(sourceArray.splice(source.sourceIndex, 1)[0]);
+    if (sourceArray) {
+      const pIdx = source.itemId ? sourceArray.findIndex(it => it.id === source.itemId) : -1;
+      if (pIdx !== -1) {
+        originalIndices.push(pIdx);
+        movedItems.push(sourceArray.splice(pIdx, 1)[0]);
+      } else if (!source.itemId && source.sourceIndex >= 0 && source.sourceIndex < sourceArray.length) {
+        originalIndices.push(source.sourceIndex);
+        movedItems.push(sourceArray.splice(source.sourceIndex, 1)[0]);
+      }
+    }
+
+    // Если в sourceArray не найден, но itemId передан — ищем глобально по всем дням и бэклогу
+    if (movedItems.length === 0 && source.itemId) {
+      for (const p of state.periods) {
+        for (const dKey of Object.keys(p.days || {})) {
+          const items = p.days[dKey].items || [];
+          const idx = items.findIndex(it => it.id === source.itemId);
+          if (idx !== -1) {
+            sourceArray = items;
+            originalIndices.push(idx);
+            movedItems.push(items.splice(idx, 1)[0]);
+            break;
+          }
+        }
+        if (movedItems.length > 0) break;
+      }
+      if (movedItems.length === 0 && state.backlog) {
+        const bIdx = state.backlog.findIndex(it => it.id === source.itemId);
+        if (bIdx !== -1) {
+          sourceArray = state.backlog;
+          originalIndices.push(bIdx);
+          movedItems.push(state.backlog.splice(bIdx, 1)[0]);
+        }
+      }
     }
 
     if (movedItems.length === 0) return;
@@ -985,23 +1012,49 @@
     let sourceArray = null;
     if (isBacklog) {
       sourceArray = state.backlog;
-    } else {
+    } else if (dateKey) {
       const period = findPeriodByDate(dateKey);
       if (period && period.days[dateKey]) {
         sourceArray = period.days[dateKey].items;
       }
     }
-    if (!sourceArray) return;
 
-    const pIdx = itemId ? sourceArray.findIndex(it => it.id === itemId) : index;
-    if (pIdx >= 0 && pIdx < sourceArray.length) {
-      const deleted = sourceArray.splice(pIdx, 1)[0];
-      if (deleted && deleted.id) {
-        // Удаляем также все привязанные сопутствующие блоки
-        for (let i = sourceArray.length - 1; i >= 0; i--) {
-          if (sourceArray[i].parentId === deleted.id) {
-            sourceArray.splice(i, 1);
+    let deleted = null;
+    if (sourceArray) {
+      const pIdx = itemId ? sourceArray.findIndex(it => it.id === itemId) : index;
+      if (pIdx >= 0 && pIdx < sourceArray.length) {
+        deleted = sourceArray.splice(pIdx, 1)[0];
+      }
+    }
+
+    // Если по dateKey не найдено, но itemId передан — ищем глобально
+    if (!deleted && itemId) {
+      for (const period of state.periods) {
+        for (const dKey of Object.keys(period.days || {})) {
+          const items = period.days[dKey].items || [];
+          const idx = items.findIndex(it => it.id === itemId);
+          if (idx !== -1) {
+            sourceArray = items;
+            deleted = items.splice(idx, 1)[0];
+            break;
           }
+        }
+        if (deleted) break;
+      }
+      if (!deleted && state.backlog) {
+        const bIdx = state.backlog.findIndex(it => it.id === itemId);
+        if (bIdx !== -1) {
+          sourceArray = state.backlog;
+          deleted = state.backlog.splice(bIdx, 1)[0];
+        }
+      }
+    }
+
+    if (deleted && deleted.id && sourceArray) {
+      // Удаляем также все привязанные сопутствующие блоки
+      for (let i = sourceArray.length - 1; i >= 0; i--) {
+        if (sourceArray[i].parentId === deleted.id) {
+          sourceArray.splice(i, 1);
         }
       }
     }
@@ -1464,7 +1517,7 @@
     let currentTool = 'pen'; // 'pen' | 'highlighter' | 'eraser' | 'pan'
     let currentColor = '#10b981';
     let currentSize = 3;
-    let palmRejectionOnlyPen = true; // Защита от ладони: true = только Apple Pencil / S-Pen рисует!
+    let palmRejectionOnlyPen = false; // Защита от ладони: принудительно true только при явном включении!
     let lastX = 0;
     let lastY = 0;
     let lastMidX = 0;
@@ -1483,6 +1536,10 @@
     let toastTimer = null;
     let currentStrokePoints = [];
     let pendingRemoteStrokes = [];
+    let currentStrokeId = null;
+    let lastStreamTime = 0;
+    let streamedPointIndex = 0;
+    let activeRemoteStrokes = new Map();
 
     let touchGesture = {
       startTime: 0,
@@ -1895,7 +1952,7 @@
       }
 
       // Жесткий Palm Rejection: при включенной защите касания рукой не рисуют
-      if (palmRejectionOnlyPen && e.pointerType !== 'pen') {
+      if (palmRejectionOnlyPen && e.pointerType === 'touch') {
         e.preventDefault();
         return;
       }
@@ -1926,6 +1983,22 @@
       ctx.fillStyle = ctx.strokeStyle;
       ctx.fill();
       didDrawInStroke = true;
+
+      // Мгновенная инициация потокового вещания штриха (0 мс задержки между устройствами)
+      currentStrokeId = 'strk_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7);
+      streamedPointIndex = 0;
+      if (window.SyncEngine && typeof window.SyncEngine.broadcastStrokeChunk === 'function') {
+        window.SyncEngine.broadcastStrokeChunk({
+          strokeId: currentStrokeId,
+          periodIndex: state.currentPeriodIndex,
+          tool: currentTool,
+          color: currentColor,
+          size: currentSize,
+          points: currentStrokePoints.slice()
+        });
+        streamedPointIndex = currentStrokePoints.length;
+        lastStreamTime = Date.now();
+      }
     });
 
     canvas.addEventListener('pointermove', (e) => {
@@ -1952,7 +2025,7 @@
       }
 
       if (!isDrawing || !isDrawingMode) return;
-      if (palmRejectionOnlyPen && e.pointerType !== 'pen') {
+      if (palmRejectionOnlyPen && e.pointerType === 'touch') {
         e.preventDefault();
         return;
       }
@@ -1985,6 +2058,26 @@
         lastMidY = midY;
         lastX = x;
         lastY = y;
+      }
+
+      // Потоковая трансляция точек во время ведения стилуса (каждые ~40мс или 5 точек)
+      if (currentStrokeId && window.SyncEngine && typeof window.SyncEngine.broadcastStrokeChunk === 'function') {
+        const now = Date.now();
+        if (now - lastStreamTime >= 40 || (currentStrokePoints.length - streamedPointIndex) >= 5) {
+          const chunk = currentStrokePoints.slice(streamedPointIndex);
+          if (chunk.length > 0) {
+            window.SyncEngine.broadcastStrokeChunk({
+              strokeId: currentStrokeId,
+              periodIndex: state.currentPeriodIndex,
+              tool: currentTool,
+              color: currentColor,
+              size: currentSize,
+              points: chunk
+            });
+            streamedPointIndex = currentStrokePoints.length;
+            lastStreamTime = now;
+          }
+        }
       }
     });
 
@@ -2029,13 +2122,22 @@
       }
 
       if (didDrawInStroke && currentStrokePoints.length > 0 && window.SyncEngine) {
+        if (typeof window.SyncEngine.broadcastStrokeEnd === 'function' && currentStrokeId) {
+          const remainingChunk = currentStrokePoints.slice(streamedPointIndex);
+          window.SyncEngine.broadcastStrokeEnd({
+            strokeId: currentStrokeId,
+            periodIndex: state.currentPeriodIndex,
+            points: remainingChunk
+          });
+        }
         const strokePayload = {
           periodIndex: state.currentPeriodIndex,
           stroke: {
             tool: currentTool,
             color: currentColor,
             size: currentSize,
-            points: currentStrokePoints
+            points: currentStrokePoints,
+            strokeId: currentStrokeId
           }
         };
         setTimeout(() => {
@@ -2044,7 +2146,8 @@
           }
         }, 0);
       }
-      currentStrokePoints = [];
+      currentStrokeId = null;
+      streamedPointIndex = 0;
 
       try { canvas.releasePointerCapture(e.pointerId); } catch(err) {}
       debouncedSaveDrawing();
@@ -2059,6 +2162,10 @@
             saveUndo();
             clearCanvasOnly();
             localStorage.removeItem(getPeriodKey());
+          } else if (item.action === 'chunk') {
+            drawRemoteStrokeChunk(item.data);
+          } else if (item.action === 'stroke_end') {
+            finishRemoteStroke(item.data);
           } else if (item.stroke) {
             drawRemoteStroke(item.stroke, item.periodIndex);
           }
@@ -2134,8 +2241,106 @@
     });
 
     // Отрисовка векторных штрихов с других устройств
+    function drawRemoteStrokeChunk(data) {
+      if (!data || !data.points || data.points.length === 0) return;
+      if (isDrawing) {
+        pendingRemoteStrokes.push({ action: 'chunk', data });
+        return;
+      }
+      if (data.periodIndex !== state.currentPeriodIndex) return;
+
+      let st = activeRemoteStrokes.get(data.strokeId);
+      if (!st) {
+        saveUndo();
+        st = {
+          tool: data.tool || 'pen',
+          color: data.color || '#10b981',
+          size: data.size || 3,
+          lastX: 0,
+          lastY: 0,
+          lastMidX: 0,
+          lastMidY: 0,
+          hasDrawnStart: false
+        };
+        activeRemoteStrokes.set(data.strokeId, st);
+      }
+
+      const prevTool = currentTool;
+      const prevColor = currentColor;
+      const prevSize = currentSize;
+
+      currentTool = st.tool;
+      currentColor = st.color;
+      currentSize = st.size;
+
+      const pts = data.points;
+      for (let i = 0; i < pts.length; i++) {
+        const pt = pts[i];
+        const x = pt[0], y = pt[1], p = pt[2] || 0.5;
+        applyToolStyles(p);
+
+        if (!st.hasDrawnStart) {
+          ctx.beginPath();
+          ctx.arc(x, y, (ctx.lineWidth || currentSize) / 2, 0, Math.PI * 2);
+          ctx.fillStyle = ctx.strokeStyle;
+          ctx.fill();
+          st.lastX = x;
+          st.lastY = y;
+          st.lastMidX = x;
+          st.lastMidY = y;
+          st.hasDrawnStart = true;
+        } else {
+          const midX = (st.lastX + x) / 2;
+          const midY = (st.lastY + y) / 2;
+          ctx.beginPath();
+          ctx.moveTo(st.lastMidX, st.lastMidY);
+          ctx.quadraticCurveTo(st.lastX, st.lastY, midX, midY);
+          ctx.stroke();
+          st.lastMidX = midX;
+          st.lastMidY = midY;
+          st.lastX = x;
+          st.lastY = y;
+        }
+      }
+
+      currentTool = prevTool;
+      currentColor = prevColor;
+      currentSize = prevSize;
+    }
+
+    function finishRemoteStroke(data) {
+      if (!data) return;
+      if (data.points && data.points.length > 0) {
+        drawRemoteStrokeChunk(data);
+      }
+      const st = activeRemoteStrokes.get(data.strokeId);
+      if (st && st.hasDrawnStart) {
+        const prevTool = currentTool;
+        const prevColor = currentColor;
+        const prevSize = currentSize;
+        currentTool = st.tool;
+        currentColor = st.color;
+        currentSize = st.size;
+        applyToolStyles(0.5);
+        ctx.beginPath();
+        ctx.moveTo(st.lastMidX, st.lastMidY);
+        ctx.lineTo(st.lastX, st.lastY);
+        ctx.stroke();
+        currentTool = prevTool;
+        currentColor = prevColor;
+        currentSize = prevSize;
+      }
+      activeRemoteStrokes.delete(data.strokeId);
+      debouncedSaveDrawing();
+    }
+
     function drawRemoteStroke(stroke, periodIndex) {
       if (!stroke || !stroke.points || stroke.points.length === 0) return;
+      if (stroke.strokeId && activeRemoteStrokes.has(stroke.strokeId)) {
+        activeRemoteStrokes.delete(stroke.strokeId);
+        debouncedSaveDrawing();
+        return;
+      }
       if (isDrawing) {
         pendingRemoteStrokes.push({ stroke, periodIndex });
         return;
@@ -2314,6 +2519,8 @@
       setDrawingMode,
       toggleDrawingMode,
       drawRemoteStroke,
+      drawRemoteStrokeChunk,
+      finishRemoteStroke,
       remoteUndo: (periodIndex) => {
         if (periodIndex === state.currentPeriodIndex) {
           if (isDrawing) {
@@ -2723,6 +2930,20 @@
         if (!data || !data.stroke) return;
         if (window.GoodNotesStylus && typeof window.GoodNotesStylus.drawRemoteStroke === 'function') {
           window.GoodNotesStylus.drawRemoteStroke(data.stroke, data.periodIndex);
+        }
+      },
+
+      onStrokeChunk: (data) => {
+        if (!data) return;
+        if (window.GoodNotesStylus && typeof window.GoodNotesStylus.drawRemoteStrokeChunk === 'function') {
+          window.GoodNotesStylus.drawRemoteStrokeChunk(data);
+        }
+      },
+
+      onStrokeEnd: (data) => {
+        if (!data) return;
+        if (window.GoodNotesStylus && typeof window.GoodNotesStylus.finishRemoteStroke === 'function') {
+          window.GoodNotesStylus.finishRemoteStroke(data);
         }
       },
 

@@ -45,6 +45,8 @@
     onUpdateItem: null,
     onDeleteItem: null,
     onStrokeAdd: null,
+    onStrokeChunk: null,
+    onStrokeEnd: null,
     onStrokeUndo: null,
     onStrokeClear: null,
     onRequestState: null,
@@ -452,11 +454,19 @@
   function parseRoomFromUrl() {
     try {
       const hash = window.location.hash || '';
+      const search = window.location.search || '';
+      const fullQuery = hash + '&' + search;
+      const brokerMatch = fullQuery.match(/[?&#]b=(\d+)/i);
+      if (brokerMatch && brokerMatch[1]) {
+        const bIdx = parseInt(brokerMatch[1], 10);
+        if (bIdx >= 0 && bIdx < activeBrokers.length) {
+          currentBrokerIdx = bIdx;
+        }
+      }
       const match = hash.match(/#(?:sync|room)=([^&]+)/i);
       if (match && match[1]) {
         return decodeURIComponent(match[1].trim());
       }
-      const search = window.location.search || '';
       const matchSearch = search.match(/[?&](?:sync|room)=([^&]+)/i);
       if (matchSearch && matchSearch[1]) {
         return decodeURIComponent(matchSearch[1].trim());
@@ -467,7 +477,7 @@
 
   function getRoomUrl(roomId) {
     const base = window.location.origin + window.location.pathname;
-    return `${base}#sync=${encodeURIComponent(roomId || currentRoom || '')}`;
+    return `${base}#sync=${encodeURIComponent(roomId || currentRoom || '')}&b=${currentBrokerIdx}`;
   }
 
   // ==========================================================================
@@ -533,7 +543,7 @@
 
     try {
       if (typeof window !== 'undefined' && window.location && window.history) {
-        const expectedHash = `#sync=${encodeURIComponent(roomId)}`;
+        const expectedHash = `#sync=${encodeURIComponent(roomId)}&b=${currentBrokerIdx}`;
         if (window.location.hash !== expectedHash) {
           window.history.replaceState(null, '', expectedHash);
         }
@@ -616,10 +626,10 @@
       return;
     }
 
-    // Быстрый таймаут рукопожатия (3.5 сек) для мгновенного обхода мобильных сетевых блокировок
+    // Таймаут рукопожатия (5.0 сек) для надежного обхода мобильных задержек и переключения
     connectTimeout = setTimeout(() => {
       if (status !== 'connected') {
-        console.warn('Таймаут WSS брокера (3.5с), переключение на резервный:', brokerUrl);
+        console.warn('Таймаут WSS брокера (5с), переключение на резервный:', brokerUrl);
         currentBrokerIdx = (currentBrokerIdx + 1) % activeBrokers.length;
         if (ws) {
           try { ws.close(); } catch (e) {}
@@ -627,7 +637,7 @@
         }
         connectWebSocket();
       }
-    }, 3500);
+    }, 5000);
 
     ws.onopen = () => {
       // Отправляем пакет MQTT CONNECT
@@ -719,9 +729,11 @@
   function scheduleReconnect() {
     if (reconnectTimer) return;
     reconnectAttempts++;
-    // Мгновенное переключение на следующий резервный брокер
-    currentBrokerIdx = (currentBrokerIdx + 1) % activeBrokers.length;
-    const delay = reconnectAttempts <= activeBrokers.length ? 400 : Math.min(1000 * Math.pow(1.5, Math.min(reconnectAttempts, 5)), 8000);
+    // Переключаем брокер только после серии из 3 неудачных попыток подключения
+    if (reconnectAttempts % 3 === 0) {
+      currentBrokerIdx = (currentBrokerIdx + 1) % activeBrokers.length;
+    }
+    const delay = reconnectAttempts <= 2 ? 300 : Math.min(1000 * Math.pow(1.3, Math.min(reconnectAttempts, 5)), 6000);
     reconnectTimer = setTimeout(() => {
       reconnectTimer = null;
       if (currentRoom) {
@@ -890,6 +902,18 @@
         }
         break;
 
+      case 'STROKE_CHUNK':
+        if (typeof callbacks.onStrokeChunk === 'function') {
+          callbacks.onStrokeChunk(data);
+        }
+        break;
+
+      case 'STROKE_END':
+        if (typeof callbacks.onStrokeEnd === 'function') {
+          callbacks.onStrokeEnd(data);
+        }
+        break;
+
       case 'STROKE_UNDO':
         if (typeof callbacks.onStrokeUndo === 'function') {
           callbacks.onStrokeUndo(data);
@@ -1050,11 +1074,13 @@
       }
     });
 
-    document.addEventListener('visibilitychange', () => {
-      if (!document.hidden && currentRoom && (status === 'disconnected' || !ws || ws.readyState !== WebSocket.OPEN)) {
-        connectWebSocket();
-      }
-    });
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && currentRoom && (status === 'disconnected' || !ws || ws.readyState !== (typeof WebSocket !== 'undefined' ? WebSocket.OPEN : 1))) {
+          connectWebSocket();
+        }
+      });
+    }
   }
 
   // ==========================================================================
@@ -1107,6 +1133,14 @@
 
     broadcastStroke: function (details) {
       broadcastMessage('STROKE_ADD', details);
+    },
+
+    broadcastStrokeChunk: function (details) {
+      broadcastMessage('STROKE_CHUNK', details);
+    },
+
+    broadcastStrokeEnd: function (details) {
+      broadcastMessage('STROKE_END', details);
     },
 
     broadcastUndo: function (details) {
