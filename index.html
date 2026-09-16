@@ -40,10 +40,16 @@
         <button id="search-clear" class="search-clear" title="Очистить поиск">✕</button>
       </div>
 
-      <!-- Главные действия: Кнопка стилуса и единое меню «Настройки» -->
+      <!-- Главные действия: Кнопка стилуса, синхронизация и единое меню «Настройки» -->
       <div class="header-actions">
         <button id="draw-mode-btn" class="btn btn-primary-highlight draw-mode-btn" title="Включить рукописные заметки стилусом (GoodNotes)">
           ✍️ Стилус
+        </button>
+
+        <button id="sync-btn" class="btn btn-sync-status" title="Синхронизация между устройствами в реальном времени (Планшет ↔ ПК)">
+          <span class="sync-dot" id="header-sync-dot"></span>
+          <span class="sync-btn-label">🔗 Синхр</span>
+          <span id="sync-peer-badge" class="badge-counter" style="display: none;">1</span>
         </button>
 
         <!-- Выпадающее меню настроек и сервисных действий -->
@@ -55,6 +61,9 @@
             <div class="dropdown-header">Интерфейс и режим</div>
             <button id="theme-toggle-btn" class="dropdown-item" title="Переключить тему оформления (Светлая / Тёмная)">
               🌙 Тёмная тема
+            </button>
+            <button id="menu-sync-btn" class="dropdown-item" title="Синхронизация между устройствами в реальном времени">
+              🔗 Синхронизация устройств
             </button>
             <button id="tablet-btn" class="dropdown-item" title="Открыть на планшете (iPad / Android)">
               📱 На планшет
@@ -484,6 +493,88 @@
   </div>
 
   <!-- ==========================================
+       МОДАЛЬНОЕ ОКНО: СИНХРОНИЗАЦИЯ УСТРОЙСТВ
+       ========================================== -->
+  <div id="sync-modal-backdrop" class="modal-backdrop">
+    <div class="modal-dialog sync-modal-dialog">
+      <div class="modal-header">
+        <h3 class="modal-title">🔗 Синхронизация устройств</h3>
+        <button id="sync-modal-close-btn" class="modal-close-btn" title="Закрыть окно">✕</button>
+      </div>
+      <div class="modal-body sync-modal-body">
+        <!-- Статус подключения и счетчик устройств -->
+        <div class="sync-status-banner" id="sync-status-card">
+          <div class="sync-status-indicator">
+            <span class="sync-dot-large" id="modal-sync-dot"></span>
+            <div>
+              <div class="sync-status-title" id="modal-sync-title">Подключение к сети...</div>
+              <div class="sync-status-subtitle" id="modal-sync-subtitle">Защищенный WSS-канал реального времени</div>
+            </div>
+          </div>
+          <div class="sync-peers-badge" id="modal-peers-count">
+            1 устройство в сети
+          </div>
+        </div>
+
+        <!-- Текущий код комнаты -->
+        <div class="sync-card">
+          <div class="sync-card-header">
+            <span class="sync-card-badge">Код комнаты</span>
+            <span class="sync-card-label">Используйте для сопряжения</span>
+          </div>
+          <div class="sync-room-row">
+            <div class="sync-room-code" id="modal-room-code">---</div>
+            <button id="sync-copy-code-btn" class="btn btn-outline" title="Скопировать код комнаты">
+              📋 Копировать код
+            </button>
+            <button id="sync-new-room-btn" class="btn btn-outline" title="Создать новый случайный код комнаты">
+              ↺ Сменить
+            </button>
+          </div>
+        </div>
+
+        <!-- QR-код для моментального сопряжения -->
+        <div class="sync-card sync-qr-card">
+          <div class="sync-card-header">
+            <span class="sync-card-badge">Мгновенный вход по QR</span>
+            <span class="sync-card-label">Наведите камеру iPad или телефона</span>
+          </div>
+          <div class="sync-qr-container" id="modal-qr-container">
+            <!-- Динамический векторный SVG QR генерируется автоматически -->
+          </div>
+          <div class="sync-link-preview" id="modal-link-preview">https://...</div>
+          <button id="sync-copy-link-btn" class="btn btn-primary btn-block">
+            📋 Скопировать ссылку сопряжения
+          </button>
+        </div>
+
+        <!-- Подключение к существующей комнате -->
+        <div class="sync-card">
+          <div class="sync-card-header">
+            <span class="sync-card-badge">Присоединиться</span>
+            <span class="sync-card-label">Введите код с другого устройства</span>
+          </div>
+          <div class="sync-join-row">
+            <input type="text" id="sync-join-input" class="sync-input" placeholder="Например: ХИМ-749" maxlength="20">
+            <button id="sync-join-btn" class="btn btn-outline">Войти</button>
+          </div>
+        </div>
+
+        <!-- Список возможностей синхронизации -->
+        <div class="sync-features-note">
+          <div class="feature-item">✓ <strong>Drag & Drop</strong>: перенос уроков между днями отражается на всех экранах (&lt;50 мс)</div>
+          <div class="feature-item">✓ <strong>Чекбоксы</strong>: прогресс выполнения и сопутствующие тесты/ДЗ синхронизируются мгновенно</div>
+          <div class="feature-item">✓ <strong>Стилус GoodNotes</strong>: векторные штрихи Apple Pencil / S-Pen передаются сразу после отрыва пера</div>
+          <div class="feature-item">✓ <strong>Бесплатно навсегда</strong>: нулевая настройка, без учетных записей и серверных оплат</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="sync-modal-done-btn" class="btn btn-primary">Понятно</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================
        НИЖНЯЯ ПАНЕЛЬ ДЛЯ ТЕЛЕФОНОВ (iOS & ANDROID)
        ========================================== -->
   <nav class="mobile-bottom-bar" id="mobile-bottom-bar">
@@ -494,6 +585,10 @@
     <button id="mob-draw-btn" class="mob-bar-item" title="Стилус GoodNotes">
       <span class="mob-bar-icon">✏️</span>
       <span class="mob-bar-label">Стилус</span>
+    </button>
+    <button id="mob-sync-btn" class="mob-bar-item" title="Синхронизация устройств">
+      <span class="mob-bar-icon">🔗<span id="mob-sync-badge" class="badge-dot" style="display: none;"></span></span>
+      <span class="mob-bar-label">Синхр</span>
     </button>
     <button id="mob-theme-btn" class="mob-bar-item" title="Тёмная / Светлая тема">
       <span class="mob-bar-icon">🌙</span>
@@ -509,8 +604,9 @@
     </button>
   </nav>
 
-  <!-- База данных курса и скрипт логики -->
+  <!-- База данных курса и скрипты логики -->
   <script src="schedule_data.js"></script>
+  <script src="sync.js"></script>
   <script src="app.js"></script>
   <script>
     // Регистрация Service Worker для автономной оффлайн-работы (PWA)

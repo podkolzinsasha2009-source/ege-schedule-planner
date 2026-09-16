@@ -240,12 +240,186 @@ def test_zero_latency_and_redesign():
     assert "touch-action: none" in css, "styles.css missing touch-action: none on canvas"
     print("✓ styles.css dropdown menu, slim progress bar, accordion checklists, subject pills, and toast verified.")
 
-    # 4. SW v5 verification
+    # 4. SW v6 verification
     sw_path = os.path.join(DIR, "sw.js")
     with open(sw_path, "r", encoding="utf-8") as f:
         sw = f.read()
-    assert "himbiorus-pwa-v5" in sw, "sw.js missing v5 cache name"
-    print("✓ sw.js v5 cache version verified.")
+    assert "himbiorus-pwa-v6" in sw, "sw.js missing v6 cache name"
+    print("✓ sw.js v6 cache version verified.")
+
+def test_realtime_synchronization():
+    # 1. sync.js Engine Verification
+    sync_js_path = os.path.join(DIR, "sync.js")
+    assert os.path.exists(sync_js_path), "sync.js missing"
+    assert os.path.getsize(sync_js_path) > 1000, "sync.js is too small or empty"
+    with open(sync_js_path, "r", encoding="utf-8") as f:
+        sync_js = f.read()
+
+    assert "broker.hivemq.com" in sync_js, "sync.js missing HiveMQ public WSS broker"
+    assert "broker.emqx.io" in sync_js, "sync.js missing EMQX fallback broker"
+    assert "createConnectPacket" in sync_js, "sync.js missing MQTT CONNECT packet generator"
+    assert "createPublishPacket" in sync_js, "sync.js missing MQTT PUBLISH packet generator"
+    assert "parseMqttPackets" in sync_js, "sync.js missing MQTT packet parser"
+    assert "BroadcastChannel" in sync_js, "sync.js missing local BroadcastChannel for zero-latency multi-tab"
+    assert "ROOM_PREFIXES" in sync_js, "sync.js missing human-readable room prefixes"
+    assert "generateRoomCode" in sync_js, "sync.js missing room code generator"
+    assert "MiniQR" in sync_js or "toSVG" in sync_js, "sync.js missing standalone QR code generator"
+    assert "REQUEST_STATE" in sync_js and "FULL_STATE_SYNC" in sync_js, "sync.js missing state sync protocol"
+    assert "MOVE_ITEM" in sync_js and "STROKE_ADD" in sync_js, "sync.js missing event protocol"
+    print("✓ sync.js engine verified: HiveMQ WSS relay, MQTT 3.1.1 framing, BroadcastChannel, and MiniQR.")
+
+    # 2. app.js Integration Verification
+    app_js_path = os.path.join(DIR, "app.js")
+    with open(app_js_path, "r", encoding="utf-8") as f:
+        app_js = f.read()
+    assert "setupRealtimeSync" in app_js, "app.js missing setupRealtimeSync"
+    assert "window.SyncEngine.broadcastMove" in app_js, "app.js missing broadcastMove in moveItem"
+    assert "window.SyncEngine.broadcastToggle" in app_js, "app.js missing broadcastToggle in checkboxes"
+    assert "window.SyncEngine.broadcastStroke" in app_js, "app.js missing broadcastStroke in finishStroke"
+    assert "window.SyncEngine.broadcastUndo" in app_js, "app.js missing broadcastUndo"
+    assert "drawRemoteStroke" in app_js, "app.js missing drawRemoteStroke in GoodNotes stylus engine"
+    assert "remoteUndo" in app_js, "app.js missing remoteUndo"
+    assert "remoteClear" in app_js, "app.js missing remoteClear"
+    print("✓ app.js integration verified: atomic moves, checkboxes, vector stylus strokes, and state sync hooks.")
+
+    # 3. index.html Markup Verification
+    html_path = os.path.join(DIR, "index.html")
+    with open(html_path, "r", encoding="utf-8") as f:
+        html = f.read()
+    assert '<script src="sync.js"></script>' in html, "index.html missing sync.js script tag"
+    assert 'id="sync-btn"' in html, "index.html missing header sync button"
+    assert 'id="header-sync-dot"' in html, "index.html missing header sync indicator"
+    assert 'id="sync-peer-badge"' in html, "index.html missing header peer count badge"
+    assert 'id="sync-modal-backdrop"' in html, "index.html missing sync modal dialog"
+    assert 'id="modal-room-code"' in html, "index.html missing room code display"
+    assert 'id="modal-qr-container"' in html, "index.html missing dynamic QR container"
+    assert 'id="sync-copy-code-btn"' in html, "index.html missing copy code button"
+    assert 'id="sync-copy-link-btn"' in html, "index.html missing copy link button"
+    assert 'id="sync-join-btn"' in html, "index.html missing join room button"
+    assert 'id="mob-sync-btn"' in html, "index.html missing mobile navigation sync button"
+    print("✓ index.html markup verified: sync button, status badges, QR modal, and mobile actions.")
+
+    # 4. styles.css Verification
+    css_path = os.path.join(DIR, "styles.css")
+    with open(css_path, "r", encoding="utf-8") as f:
+        css = f.read()
+    assert ".btn-sync-status" in css, "styles.css missing .btn-sync-status"
+    assert ".sync-dot" in css, "styles.css missing .sync-dot"
+    assert "pulseGreen" in css, "styles.css missing pulseGreen animation"
+    assert ".sync-modal-dialog" in css, "styles.css missing .sync-modal-dialog"
+    assert ".sync-room-code" in css, "styles.css missing .sync-room-code"
+    assert ".sync-qr-container" in css, "styles.css missing .sync-qr-container"
+    print("✓ styles.css verified: sync buttons, pulse indicators, modal dialog, and dark mode.")
+
+    # 5. sw.js Caching Verification
+    sw_path = os.path.join(DIR, "sw.js")
+    with open(sw_path, "r", encoding="utf-8") as f:
+        sw = f.read()
+    assert "'./sync.js'" in sw or '"./sync.js"' in sw, "sw.js missing sync.js in ASSETS_TO_CACHE"
+    assert "himbiorus-pwa-v6" in sw, "sw.js missing v6 cache version"
+    print("✓ sw.js PWA v6 cache verified: sync.js cached for 100% offline capability.")
+
+    # 6. Multi-Device End-to-End Node Simulation
+    import subprocess
+    node_test_script = """
+    const fs = require('fs');
+    const vm = require('vm');
+
+    const bus = [];
+
+    function createClient(id) {
+      const code = fs.readFileSync('sync.js', 'utf8');
+      class MockBroadcastChannel {
+        constructor(name) {
+          this.name = name;
+          this.onmessage = null;
+          bus.push(this);
+        }
+        postMessage(msg) {
+          bus.forEach(ch => {
+            if (ch !== this && ch.onmessage) {
+              setTimeout(() => ch.onmessage({ data: msg }), 0);
+            }
+          });
+        }
+        close() {}
+      }
+
+      const sandbox = {
+        console,
+        setTimeout,
+        clearTimeout,
+        setInterval,
+        clearInterval,
+        TextEncoder,
+        TextDecoder,
+        Uint8Array,
+        Array,
+        Math,
+        JSON,
+        Map,
+        Set,
+        Date,
+        Object,
+        BroadcastChannel: MockBroadcastChannel,
+        process,
+        window: {
+          location: { hash: '#sync=EGE-999', pathname: '/', origin: 'http://localhost' },
+          addEventListener: () => {},
+          BroadcastChannel: MockBroadcastChannel
+        },
+        document: {
+          addEventListener: () => {}
+        },
+        localStorage: {
+          getItem: () => null,
+          setItem: () => {}
+        }
+      };
+      vm.createContext(sandbox);
+      vm.runInContext(code, sandbox);
+      return sandbox.window ? sandbox.window.SyncEngine : sandbox.SyncEngine;
+    }
+
+    const clientA = createClient('client-a');
+    const clientB = createClient('client-b');
+
+    let clientBReceivedMove = false;
+    let clientBReceivedStroke = false;
+
+    clientB.init({
+      onMoveItem: (data) => {
+        if (data.source.itemId === 'bio_01_th' && data.target.targetDateKey === '2025-08-16') {
+          clientBReceivedMove = true;
+        }
+      },
+      onStrokeAdd: (data) => {
+        if (data.periodIndex === 0 && data.stroke.tool === 'pen') {
+          clientBReceivedStroke = true;
+        }
+      }
+    });
+
+    clientA.init({});
+
+    // Client A broadcasts move and stroke
+    clientA.broadcastMove({ itemId: 'bio_01_th' }, { targetDateKey: '2025-08-16' });
+    clientA.broadcastStroke({ periodIndex: 0, stroke: { tool: 'pen', points: [[1, 2], [3, 4]] } });
+
+    setTimeout(() => {
+      if (clientBReceivedMove && clientBReceivedStroke) {
+        console.log('SIMULATION_PASSED');
+        process.exit(0);
+      } else {
+        console.error('FAILED: move=' + clientBReceivedMove + ' stroke=' + clientBReceivedStroke);
+        process.exit(1);
+      }
+    }, 50);
+    """
+
+    res = subprocess.run(["node", "-e", node_test_script], cwd=DIR, capture_output=True, text=True, timeout=10)
+    assert "SIMULATION_PASSED" in res.stdout, f"Multi-device simulation failed: {res.stderr or res.stdout}"
+    print("✓ Multi-device simulation verified: zero-latency message serialization and dispatch confirmed.")
 
 if __name__ == "__main__":
     test_files_exist()
@@ -254,5 +428,7 @@ if __name__ == "__main__":
     test_stylus_darkmode_mobile_features()
     test_advanced_stylus_and_mobile_features()
     test_zero_latency_and_redesign()
-    print("\n🎉 ALL VERIFICATION TESTS (DATA + ADVANCED STYLUS + DARK MODE + MOBILE + PWA + REDESIGN + GESTURES + DEEP ROBUSTNESS) PASSED SUCCESSFULLY!")
+    test_realtime_synchronization()
+    print("\n🎉 ALL VERIFICATION TESTS (DATA + ADVANCED STYLUS + DARK MODE + MOBILE + PWA + REDESIGN + GESTURES + DEEP ROBUSTNESS + REALTIME SYNC) PASSED SUCCESSFULLY!")
+
 

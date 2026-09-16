@@ -97,6 +97,7 @@
     updateProgress();
     setupGoodNotesStylus();
     setupMobileNavigation();
+    setupRealtimeSync();
   }
 
   // Загрузка состояния из localStorage или базовых данных курса
@@ -446,6 +447,16 @@
       card.classList.toggle('completed', item.completed);
       saveState();
       updateProgress();
+      if (window.SyncEngine) {
+        window.SyncEngine.broadcastToggle({
+          itemId: item.id,
+          completed: item.completed,
+          isCompanion: false,
+          parentId: null,
+          dateKey: dateKey,
+          isBacklog: isBacklog
+        });
+      }
     });
 
     // Редактирование
@@ -517,6 +528,17 @@
           const labelEl = toggleBtn.querySelector('.accordion-label');
           if (labelEl) labelEl.textContent = `Задания (${newDone}/${totalCompCount})`;
           toggleBtn.classList.toggle('all-done', newDone === totalCompCount);
+
+          if (window.SyncEngine) {
+            window.SyncEngine.broadcastToggle({
+              itemId: comp.id,
+              completed: comp.completed,
+              isCompanion: true,
+              parentId: item.id,
+              dateKey: dateKey,
+              isBacklog: isBacklog
+            });
+          }
         });
 
         row.querySelector('.checklist-del-btn').addEventListener('click', (e) => {
@@ -832,7 +854,7 @@
   }
 
   // АТОМАРНЫЙ ПЕРЕНОС БЛОКА
-  function moveItem(source, target) {
+  function moveItem(source, target, isRemote = false) {
     let sourceArray = null;
 
     // 1. Извлекаем исходный список
@@ -904,6 +926,11 @@
     saveState();
     renderCalendar();
     renderBacklog();
+    updateProgress();
+
+    if (!isRemote && window.SyncEngine) {
+      window.SyncEngine.broadcastMove(source, target);
+    }
   }
 
   function findPeriodByDate(dateKey) {
@@ -971,7 +998,7 @@
   // УДАЛЕНИЕ И РЕДАКТИРОВАНИЕ
   // ==========================================
 
-  function deleteItem(dateKey, index, isBacklog, itemId) {
+  function deleteItem(dateKey, index, isBacklog, itemId, isRemote = false) {
     let sourceArray = null;
     if (isBacklog) {
       sourceArray = state.backlog;
@@ -998,6 +1025,11 @@
     saveState();
     renderCalendar();
     renderBacklog();
+    updateProgress();
+
+    if (!isRemote && window.SyncEngine) {
+      window.SyncEngine.broadcastDelete({ itemId, dateKey, isBacklog });
+    }
   }
 
   function openCreateModal(dateKey) {
@@ -1081,12 +1113,17 @@
           period.days[target.dateKey].items.push(newItem);
         }
       }
+
+      if (window.SyncEngine) {
+        window.SyncEngine.broadcastAdd({ item: newItem, dateKey: target.dateKey, isBacklog: target.isBacklog });
+      }
     }
 
     saveState();
     closeModal();
     renderCalendar();
     renderBacklog();
+    updateProgress();
   }
 
   // ==========================================
@@ -1445,6 +1482,8 @@
     let isPenActive = false;
     let penInactiveTimer = null;
     let toastTimer = null;
+    let currentStrokePoints = [];
+    let pendingRemoteStrokes = [];
 
     let touchGesture = {
       startTime: 0,
@@ -1609,7 +1648,7 @@
       }
     }
 
-    function undo() {
+    function undo(isRemote = false) {
       if (undoStack.length === 0) return;
       const currentSnap = takeSnapshot();
       const prev = undoStack.pop();
@@ -1624,6 +1663,10 @@
       restoreSnapshot(prev);
       debouncedSaveDrawing();
       showGestureToast('↩️ Отмена');
+
+      if (!isRemote && window.SyncEngine) {
+        window.SyncEngine.broadcastUndo({ periodIndex: state.currentPeriodIndex });
+      }
     }
 
     function redo() {
@@ -1844,6 +1887,7 @@
       lastY = y;
       lastMidX = x;
       lastMidY = y;
+      currentStrokePoints = [[Math.round(x * 10) / 10, Math.round(y * 10) / 10, Math.round(p * 100) / 100]];
 
       applyToolStyles(p);
       ctx.beginPath();
@@ -1896,6 +1940,7 @@
 
         hasMoved = true;
         didDrawInStroke = true;
+        currentStrokePoints.push([Math.round(x * 10) / 10, Math.round(y * 10) / 10, Math.round(p * 100) / 100]);
         const midX = (lastX + x) / 2;
         const midY = (lastY + y) / 2;
 
@@ -1952,8 +1997,27 @@
         currentStrokeBeforeSnap = null;
       }
 
+      if (didDrawInStroke && currentStrokePoints.length > 0 && window.SyncEngine) {
+        window.SyncEngine.broadcastStroke({
+          periodIndex: state.currentPeriodIndex,
+          stroke: {
+            tool: currentTool,
+            color: currentColor,
+            size: currentSize,
+            points: currentStrokePoints
+          }
+        });
+      }
+      currentStrokePoints = [];
+
       try { canvas.releasePointerCapture(e.pointerId); } catch(err) {}
       debouncedSaveDrawing();
+
+      if (pendingRemoteStrokes.length > 0) {
+        const queue = pendingRemoteStrokes.slice();
+        pendingRemoteStrokes = [];
+        queue.forEach(item => drawRemoteStroke(item.stroke, item.periodIndex));
+      }
     };
 
     canvas.addEventListener('pointerup', finishStroke);
@@ -2010,15 +2074,156 @@
     });
 
     // Undo & Redo & Clear
-    document.getElementById('stylus-undo-btn')?.addEventListener('click', undo);
+    document.getElementById('stylus-undo-btn')?.addEventListener('click', () => undo(false));
     document.getElementById('stylus-redo-btn')?.addEventListener('click', redo);
     document.getElementById('stylus-clear-btn')?.addEventListener('click', () => {
       if (confirm('Очистить рукописные заметки для этого периода?')) {
         saveUndo();
         clearCanvasOnly();
         localStorage.removeItem(getPeriodKey());
+        if (window.SyncEngine) {
+          window.SyncEngine.broadcastClear({ periodIndex: state.currentPeriodIndex });
+        }
       }
     });
+
+    // Отрисовка векторных штрихов с других устройств
+    function drawRemoteStroke(stroke, periodIndex) {
+      if (!stroke || !stroke.points || stroke.points.length === 0) return;
+      if (isDrawing) {
+        pendingRemoteStrokes.push({ stroke, periodIndex });
+        return;
+      }
+
+      if (periodIndex === state.currentPeriodIndex) {
+        saveUndo();
+
+        const prevTool = currentTool;
+        const prevColor = currentColor;
+        const prevSize = currentSize;
+
+        currentTool = stroke.tool || 'pen';
+        currentColor = stroke.color || '#10b981';
+        currentSize = stroke.size || 3;
+
+        const pts = stroke.points;
+        const p0 = pts[0];
+        applyToolStyles(p0[2] || 0.5);
+
+        ctx.beginPath();
+        ctx.arc(p0[0], p0[1], (ctx.lineWidth || currentSize) / 2, 0, Math.PI * 2);
+        ctx.fillStyle = ctx.strokeStyle;
+        ctx.fill();
+
+        if (pts.length > 1) {
+          let lx = p0[0], ly = p0[1];
+          let lmx = lx, lmy = ly;
+          for (let i = 1; i < pts.length; i++) {
+            const pt = pts[i];
+            const x = pt[0], y = pt[1], p = pt[2] || 0.5;
+            const mx = (lx + x) / 2;
+            const my = (ly + y) / 2;
+
+            applyToolStyles(p);
+            ctx.beginPath();
+            ctx.moveTo(lmx, lmy);
+            ctx.quadraticCurveTo(lx, ly, mx, my);
+            ctx.stroke();
+
+            lmx = mx;
+            lmy = my;
+            lx = x;
+            ly = y;
+          }
+          ctx.beginPath();
+          ctx.moveTo(lmx, lmy);
+          ctx.lineTo(lx, ly);
+          ctx.stroke();
+        }
+
+        currentTool = prevTool;
+        currentColor = prevColor;
+        currentSize = prevSize;
+
+        debouncedSaveDrawing();
+      } else {
+        updateOffscreenPeriodDrawing(periodIndex, stroke);
+      }
+    }
+
+    function updateOffscreenPeriodDrawing(periodIndex, stroke) {
+      const p = state.periods[periodIndex];
+      if (!p) return;
+      const key = `himbiorus_notes_${p.id}`;
+      const saved = localStorage.getItem(key);
+      const off = document.createElement('canvas');
+      off.width = canvas ? canvas.width : 1200;
+      off.height = canvas ? canvas.height : 800;
+      const offCtx = off.getContext('2d');
+      const dpr = window.devicePixelRatio || 1;
+
+      const renderStroke = () => {
+        offCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        offCtx.lineCap = 'round';
+        offCtx.lineJoin = 'round';
+        const isDark = document.body.classList.contains('dark-mode');
+        if (stroke.tool === 'pen') {
+          offCtx.globalCompositeOperation = 'source-over';
+          offCtx.strokeStyle = stroke.color || '#10b981';
+          offCtx.lineWidth = stroke.size || 3;
+        } else if (stroke.tool === 'highlighter') {
+          offCtx.globalCompositeOperation = isDark ? 'screen' : 'multiply';
+          offCtx.strokeStyle = stroke.color;
+          offCtx.lineWidth = Math.max((stroke.size || 3) * 3.5, 18);
+        } else if (stroke.tool === 'eraser') {
+          offCtx.globalCompositeOperation = 'destination-out';
+          offCtx.lineWidth = Math.max((stroke.size || 3) * 5, 24);
+        }
+
+        const pts = stroke.points;
+        const p0 = pts[0];
+        offCtx.beginPath();
+        offCtx.arc(p0[0], p0[1], (offCtx.lineWidth || 3) / 2, 0, Math.PI * 2);
+        offCtx.fillStyle = offCtx.strokeStyle;
+        offCtx.fill();
+
+        if (pts.length > 1) {
+          let lx = p0[0], ly = p0[1];
+          let lmx = lx, lmy = ly;
+          for (let i = 1; i < pts.length; i++) {
+            const pt = pts[i];
+            const x = pt[0], y = pt[1];
+            const mx = (lx + x) / 2;
+            const my = (ly + y) / 2;
+            offCtx.beginPath();
+            offCtx.moveTo(lmx, lmy);
+            offCtx.quadraticCurveTo(lx, ly, mx, my);
+            offCtx.stroke();
+            lmx = mx; lmy = my; lx = x; ly = y;
+          }
+          offCtx.beginPath();
+          offCtx.moveTo(lmx, lmy);
+          offCtx.lineTo(lx, ly);
+          offCtx.stroke();
+        }
+        try {
+          localStorage.setItem(key, off.toDataURL('image/png'));
+        } catch (e) {}
+        off.width = 0;
+        off.height = 0;
+      };
+
+      if (saved) {
+        const img = new Image();
+        img.onload = () => {
+          offCtx.drawImage(img, 0, 0);
+          renderStroke();
+        };
+        img.src = saved;
+      } else {
+        renderStroke();
+      }
+    }
 
     // Горячие клавиши для отмены и повтора (Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z)
     window.addEventListener('keydown', (e) => {
@@ -2045,7 +2250,7 @@
       resizeObserver.observe(wrapper);
     }
 
-    // Экспорт API стилуса для вызова при переключении страниц
+    // Экспорт API стилуса для вызова при переключении страниц и синхронизации
     stylusModule = {
       saveDrawing,
       loadDrawing,
@@ -2055,6 +2260,22 @@
       },
       setDrawingMode,
       toggleDrawingMode,
+      drawRemoteStroke,
+      remoteUndo: (periodIndex) => {
+        if (periodIndex === state.currentPeriodIndex) {
+          undo(true);
+        }
+      },
+      remoteClear: (periodIndex) => {
+        if (periodIndex === state.currentPeriodIndex) {
+          saveUndo();
+          clearCanvasOnly();
+          localStorage.removeItem(getPeriodKey());
+        } else {
+          const p = state.periods[periodIndex];
+          if (p) localStorage.removeItem(`himbiorus_notes_${p.id}`);
+        }
+      },
       getDrawingsBackup: () => {
         const drawings = {};
         for (let i = 0; i < localStorage.length; i++) {
@@ -2148,6 +2369,273 @@
         }
       });
     });
+  }
+
+  // ==========================================================================
+  // МОДУЛЬ СИНХРОНИЗАЦИИ УСТРОЙСТВ В РЕАЛЬНОМ ВРЕМЕНИ (SYNC ENGINE UI & HOOKS)
+  // ==========================================================================
+  function setupRealtimeSync() {
+    if (!window.SyncEngine) return;
+
+    const syncModal = document.getElementById('sync-modal-backdrop');
+    const syncBtn = document.getElementById('sync-btn');
+    const menuSyncBtn = document.getElementById('menu-sync-btn');
+    const mobSyncBtn = document.getElementById('mob-sync-btn');
+    const closeBtn = document.getElementById('sync-modal-close-btn');
+    const doneBtn = document.getElementById('sync-modal-done-btn');
+    const copyCodeBtn = document.getElementById('sync-copy-code-btn');
+    const copyLinkBtn = document.getElementById('sync-copy-link-btn');
+    const newRoomBtn = document.getElementById('sync-new-room-btn');
+    const joinInput = document.getElementById('sync-join-input');
+    const joinBtn = document.getElementById('sync-join-btn');
+
+    const headerDot = document.getElementById('header-sync-dot');
+    const peerBadge = document.getElementById('sync-peer-badge');
+    const mobBadge = document.getElementById('mob-sync-badge');
+
+    const modalDot = document.getElementById('modal-sync-dot');
+    const modalTitle = document.getElementById('modal-sync-title');
+    const modalSubtitle = document.getElementById('modal-sync-subtitle');
+    const modalPeers = document.getElementById('modal-peers-count');
+    const modalRoomCode = document.getElementById('modal-room-code');
+    const modalQrContainer = document.getElementById('modal-qr-container');
+    const modalLinkPreview = document.getElementById('modal-link-preview');
+
+    function updateSyncUI(status, peerCount) {
+      const isConnected = status === 'connected';
+      const isConnecting = status === 'connecting';
+
+      // Хедер
+      if (headerDot) {
+        headerDot.className = `sync-dot ${status}`;
+      }
+      if (peerBadge) {
+        peerBadge.style.display = (isConnected && peerCount > 1) ? 'inline-block' : 'none';
+        peerBadge.textContent = peerCount;
+      }
+      if (mobBadge) {
+        mobBadge.style.display = isConnected ? 'block' : 'none';
+        mobBadge.className = `badge-dot ${status}`;
+      }
+
+      // Модальное окно
+      if (modalDot) {
+        modalDot.className = `sync-dot-large ${status}`;
+      }
+      if (modalTitle) {
+        if (isConnected) {
+          modalTitle.textContent = peerCount > 1 ? `В сети (${peerCount} устройства)` : 'В сети (комната активна)';
+        } else if (isConnecting) {
+          modalTitle.textContent = 'Подключение к комнате...';
+        } else {
+          modalTitle.textContent = 'Офлайн (без интернета)';
+        }
+      }
+      if (modalSubtitle) {
+        modalSubtitle.textContent = isConnected ? 'Мгновенная передача карточек и стилуса' : 'Попытка установки защищенного WSS соединения';
+      }
+      if (modalPeers) {
+        if (isConnected) {
+          modalPeers.textContent = `🟢 ${peerCount} ${peerCount === 1 ? 'устройство' : (peerCount < 5 ? 'устройства' : 'устройств')}`;
+        } else {
+          modalPeers.textContent = '⚪ 0 устройств';
+        }
+      }
+
+      const currentRoom = window.SyncEngine.getRoomId();
+      if (modalRoomCode) {
+        modalRoomCode.textContent = currentRoom || '---';
+      }
+      const roomUrl = window.SyncEngine.getRoomUrl();
+      if (modalLinkPreview) {
+        modalLinkPreview.textContent = roomUrl;
+      }
+      if (modalQrContainer && currentRoom) {
+        window.SyncEngine.renderQRCode(modalQrContainer, roomUrl);
+      }
+    }
+
+    function openSyncModal() {
+      if (!syncModal) return;
+      syncModal.classList.add('active');
+      const curRoom = window.SyncEngine.getRoomId();
+      if (!curRoom) {
+        const initialRoom = window.SyncEngine.generateRoomCode();
+        window.SyncEngine.connect(initialRoom);
+      }
+      updateSyncUI(window.SyncEngine.getStatus(), window.SyncEngine.getPeerCount());
+    }
+
+    function closeSyncModal() {
+      if (syncModal) syncModal.classList.remove('active');
+    }
+
+    syncBtn?.addEventListener('click', openSyncModal);
+    menuSyncBtn?.addEventListener('click', openSyncModal);
+    mobSyncBtn?.addEventListener('click', openSyncModal);
+    closeBtn?.addEventListener('click', closeSyncModal);
+    doneBtn?.addEventListener('click', closeSyncModal);
+
+    copyCodeBtn?.addEventListener('click', () => {
+      const code = window.SyncEngine.getRoomId();
+      if (code) {
+        navigator.clipboard?.writeText(code).then(() => {
+          showGestureToast(`📋 Код ${code} скопирован!`);
+        }).catch(() => {
+          prompt('Скопируйте код комнаты:', code);
+        });
+      }
+    });
+
+    copyLinkBtn?.addEventListener('click', () => {
+      const url = window.SyncEngine.getRoomUrl();
+      if (url) {
+        navigator.clipboard?.writeText(url).then(() => {
+          showGestureToast('🔗 Ссылка сопряжения скопирована!');
+        }).catch(() => {
+          prompt('Скопируйте ссылку для планшета:', url);
+        });
+      }
+    });
+
+    newRoomBtn?.addEventListener('click', () => {
+      const newCode = window.SyncEngine.generateRoomCode();
+      window.SyncEngine.connect(newCode);
+      updateSyncUI(window.SyncEngine.getStatus(), window.SyncEngine.getPeerCount());
+      showGestureToast(`Создана комната ${newCode}`);
+    });
+
+    joinBtn?.addEventListener('click', () => {
+      const inputVal = (joinInput ? joinInput.value : '').trim().toUpperCase();
+      if (!inputVal) {
+        alert('Пожалуйста, введите код комнаты (например ХИМ-749)');
+        return;
+      }
+      window.SyncEngine.connect(inputVal);
+      if (joinInput) joinInput.value = '';
+      updateSyncUI(window.SyncEngine.getStatus(), window.SyncEngine.getPeerCount());
+      showGestureToast(`Подключение к ${inputVal}...`);
+    });
+
+    joinInput?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        joinBtn?.click();
+      }
+    });
+
+    // Инициализация движка синхронизации с обработчиками
+    window.SyncEngine.init({
+      onStatusChange: (status, peerCount) => {
+        updateSyncUI(status, peerCount);
+      },
+
+      onMoveItem: (data) => {
+        if (!data || !data.source || !data.target) return;
+        moveItem(data.source, data.target, true);
+        showGestureToast('🔄 Карточка перемещена с другого устройства');
+      },
+
+      onToggleCompleted: (data) => {
+        if (!data || !data.itemId) return;
+        let found = false;
+        state.periods.forEach(p => {
+          Object.values(p.days || {}).forEach(day => {
+            (day.items || []).forEach(it => {
+              if (it.id === data.itemId) {
+                it.completed = !!data.completed;
+                found = true;
+              }
+            });
+          });
+        });
+        if (!found && state.backlog) {
+          state.backlog.forEach(it => {
+            if (it.id === data.itemId) {
+              it.completed = !!data.completed;
+              found = true;
+            }
+          });
+        }
+        if (found) {
+          saveState();
+          renderCalendar();
+          renderBacklog();
+          updateProgress();
+        }
+      },
+
+      onAddItem: (data) => {
+        if (!data || !data.item) return;
+        if (data.isBacklog) {
+          state.backlog.push(data.item);
+        } else {
+          const period = findPeriodByDate(data.dateKey);
+          if (period && period.days[data.dateKey]) {
+            period.days[data.dateKey].items.push(data.item);
+          }
+        }
+        saveState();
+        renderCalendar();
+        renderBacklog();
+        updateProgress();
+        showGestureToast('➕ Добавлен урок с другого устройства');
+      },
+
+      onDeleteItem: (data) => {
+        if (!data || !data.itemId) return;
+        deleteItem(data.dateKey, null, data.isBacklog, data.itemId, true);
+        showGestureToast('🗑️ Урок удален с другого устройства');
+      },
+
+      onStrokeAdd: (data) => {
+        if (!data || !data.stroke) return;
+        if (window.GoodNotesStylus && typeof window.GoodNotesStylus.drawRemoteStroke === 'function') {
+          window.GoodNotesStylus.drawRemoteStroke(data.stroke, data.periodIndex);
+        }
+      },
+
+      onStrokeUndo: (data) => {
+        if (window.GoodNotesStylus && typeof window.GoodNotesStylus.remoteUndo === 'function') {
+          window.GoodNotesStylus.remoteUndo(data.periodIndex);
+        }
+      },
+
+      onStrokeClear: (data) => {
+        if (window.GoodNotesStylus && typeof window.GoodNotesStylus.remoteClear === 'function') {
+          window.GoodNotesStylus.remoteClear(data.periodIndex);
+        }
+      },
+
+      onRequestState: () => {
+        return {
+          periods: state.periods,
+          backlog: state.backlog,
+          currentPeriodIndex: state.currentPeriodIndex,
+          drawings: window.GoodNotesStylus ? window.GoodNotesStylus.getDrawingsBackup() : {}
+        };
+      },
+
+      onFullStateSync: (remoteState) => {
+        if (!remoteState || !remoteState.periods) return;
+        state.periods = remoteState.periods;
+        state.backlog = remoteState.backlog || [];
+        if (typeof remoteState.currentPeriodIndex === 'number' && remoteState.currentPeriodIndex < state.periods.length) {
+          state.currentPeriodIndex = remoteState.currentPeriodIndex;
+        }
+        if (remoteState.drawings && window.GoodNotesStylus) {
+          window.GoodNotesStylus.restoreDrawingsBackup(remoteState.drawings);
+        }
+        saveState();
+        renderPeriodsNav();
+        renderCalendar();
+        renderBacklog();
+        updateProgress();
+        showGestureToast('✨ Полная синхронизация завершена!');
+      }
+    });
+
+    // Первичная отрисовка UI статуса
+    updateSyncUI(window.SyncEngine.getStatus(), window.SyncEngine.getPeerCount());
   }
 
   function escapeHtml(text) {
