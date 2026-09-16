@@ -1180,9 +1180,18 @@
     },
 
     broadcastStrokeErase: function (a, b) {
-      const payload = (typeof a === 'object' && a !== null)
-        ? a
-        : { periodIndex: a, strokeId: b };
+      let payload;
+      if (typeof a === 'object' && a !== null) {
+        payload = Object.assign({}, a);
+      } else {
+        payload = { periodIndex: a, strokeId: b };
+      }
+      if (payload.strokeId && (!payload.strokeIds || payload.strokeIds.length === 0)) {
+        payload.strokeIds = [payload.strokeId];
+      }
+      if (payload.strokeIds && payload.strokeIds.length > 0 && !payload.strokeId) {
+        payload.strokeId = payload.strokeIds[0];
+      }
       broadcastMessage('STROKE_ERASE', payload);
     },
 
@@ -1193,7 +1202,7 @@
       } else if (typeof a === 'object' && a !== null) {
         payload = a.image ? a : { periodIndex: 0, image: a };
       } else {
-        payload = a;
+        payload = { image: a };
       }
       broadcastMessage('IMAGE_ADD', payload);
     },
@@ -1205,15 +1214,20 @@
       } else if (typeof a === 'object' && a !== null) {
         payload = a.image ? a : { periodIndex: 0, image: a };
       } else {
-        payload = a;
+        payload = { image: a };
       }
       broadcastMessage('IMAGE_UPDATE', payload);
     },
 
     broadcastImageDelete: function (a, b) {
-      const payload = (typeof a === 'object' && a !== null)
-        ? a
-        : { periodIndex: a, imageId: b };
+      let payload;
+      if (b !== undefined) {
+        payload = { periodIndex: a, imageId: b };
+      } else if (typeof a === 'object' && a !== null) {
+        payload = a.imageId ? a : { periodIndex: 0, imageId: a.id || a };
+      } else {
+        payload = { periodIndex: 0, imageId: a };
+      }
       broadcastMessage('IMAGE_DELETE', payload);
     },
 

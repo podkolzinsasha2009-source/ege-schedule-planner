@@ -1519,7 +1519,7 @@
     let panStartX = 0;
     let currentTool = 'pen'; // 'pen' | 'highlighter' | 'eraser' | 'pan'
     let currentColor = '#10b981';
-    let currentSize = 3;
+    let currentSize = 2;
     let palmRejectionOnlyPen = false; // Защита от ладони: принудительно true только при явном включении!
     let lastX = 0;
     let lastY = 0;
@@ -1543,6 +1543,8 @@
     let lastStreamTime = 0;
     let streamedPointIndex = 0;
     let activeRemoteStrokes = new Map();
+    let recentlyFinishedStrokes = new Set();
+    let hasSavedEraseUndo = false;
 
     let touchGesture = {
       startTime: 0,
@@ -1651,7 +1653,8 @@
 
       for (let sIdx = vectorStrokes.length - 1; sIdx >= 0; sIdx--) {
         const st = vectorStrokes[sIdx];
-        if (!st.points || st.points.length === 0) continue;
+        if (!st || !st.points || st.points.length === 0) continue;
+        if (st.tool === 'eraser') continue;
         const pts = st.points;
         const threshold = hitRadius + (st.size || 2) / 2;
 
@@ -1671,20 +1674,26 @@
         }
 
         if (hit) {
-          hitIds.add(st.id);
+          const sid = st.id || st.strokeId;
+          if (sid) hitIds.add(sid);
           erasedAny = true;
         }
       }
 
-      if (erasedAny) {
-        saveUndo();
-        vectorStrokes = vectorStrokes.filter(s => !hitIds.has(s.id));
+      if (erasedAny && hitIds.size > 0) {
+        if (!hasSavedEraseUndo) {
+          saveUndo();
+          hasSavedEraseUndo = true;
+        }
+        vectorStrokes = vectorStrokes.filter(s => !hitIds.has(s.id || s.strokeId));
         saveVectorStrokes();
         redrawAllVectorStrokes();
         showGestureToast('⚡ Линия стёрта');
         if (window.SyncEngine && typeof window.SyncEngine.broadcastStrokeErase === 'function') {
+          const idsArr = Array.from(hitIds);
           window.SyncEngine.broadcastStrokeErase({
-            strokeIds: Array.from(hitIds),
+            strokeIds: idsArr,
+            strokeId: idsArr[0],
             periodIndex: state.currentPeriodIndex
           });
         }
@@ -1957,8 +1966,8 @@
         // Динамическая чувствительность Apple Pencil / S-Pen к нажиму (0.3x - 2.2x)
         const pNorm = Math.max(0.05, Math.min(1.0, pressure));
         width = currentSize * (0.28 + 1.84 * pNorm);
-      } else if (pressure && pressure > 0) {
-        width = currentSize * (0.6 + 0.8 * pressure);
+      } else {
+        width = currentSize;
       }
 
       const isDark = document.body.classList.contains('dark-mode');
@@ -2124,15 +2133,18 @@
       if (currentTool === 'stroke-eraser') {
         e.preventDefault();
         try { canvas.setPointerCapture(e.pointerId); } catch(err) {}
+        document.querySelectorAll('.placed-image-item').forEach(i => i.classList.remove('selected'));
         const coords = getCanvasCoords(e);
         isDrawing = true;
         hasMoved = false;
+        hasSavedEraseUndo = false;
         checkAndEraseStrokeAt(coords.x, coords.y);
         return;
       }
 
       e.preventDefault();
       try { canvas.setPointerCapture(e.pointerId); } catch(err) {}
+      document.querySelectorAll('.placed-image-item').forEach(i => i.classList.remove('selected'));
 
       // Фиксация слепка холста в памяти (GPU-to-GPU drawImage <0.1 мс, без зависаний toDataURL)
       currentStrokeBeforeSnap = takeSnapshot();
@@ -2283,6 +2295,7 @@
 
       if (currentTool === 'stroke-eraser') {
         isDrawing = false;
+        hasSavedEraseUndo = false;
         try { canvas.releasePointerCapture(e.pointerId); } catch(err) {}
         return;
       }
@@ -2313,10 +2326,13 @@
         currentStrokeBeforeSnap = null;
       }
 
+      const effectiveStrokeId = currentStrokeId || ('strk_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7));
+
       if (didDrawInStroke && currentStrokePoints.length > 0) {
-        if (currentTool === 'pen' || currentTool === 'highlighter') {
+        if (currentTool === 'pen' || currentTool === 'highlighter' || currentTool === 'eraser') {
           const finishedStroke = {
-            id: currentStrokeId || ('strk_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7)),
+            id: effectiveStrokeId,
+            strokeId: effectiveStrokeId,
             tool: currentTool,
             color: currentColor,
             size: currentSize,
@@ -2339,11 +2355,12 @@
         const strokePayload = {
           periodIndex: state.currentPeriodIndex,
           stroke: {
+            id: effectiveStrokeId,
+            strokeId: effectiveStrokeId,
             tool: currentTool,
             color: currentColor,
             size: currentSize,
-            points: currentStrokePoints,
-            strokeId: currentStrokeId
+            points: currentStrokePoints
           }
         };
         setTimeout(() => {
@@ -2488,6 +2505,7 @@
           tool: data.tool || 'pen',
           color: data.color || '#10b981',
           size: data.size || 3,
+          points: [],
           lastX: 0,
           lastY: 0,
           lastMidX: 0,
@@ -2496,6 +2514,8 @@
         };
         activeRemoteStrokes.set(data.strokeId, st);
       }
+
+      if (!st.points) st.points = [];
 
       const prevTool = currentTool;
       const prevColor = currentColor;
@@ -2508,6 +2528,7 @@
       const pts = data.points;
       for (let i = 0; i < pts.length; i++) {
         const pt = pts[i];
+        st.points.push(pt);
         const x = pt[0], y = pt[1], p = pt[2] || 0.5;
         applyToolStyles(p);
 
@@ -2561,6 +2582,21 @@
         currentTool = prevTool;
         currentColor = prevColor;
         currentSize = prevSize;
+
+        const finishedStroke = {
+          id: data.strokeId,
+          strokeId: data.strokeId,
+          tool: st.tool,
+          color: st.color,
+          size: st.size,
+          points: (st.points || []).slice()
+        };
+        if (!vectorStrokes.some(s => (s.id || s.strokeId) === data.strokeId)) {
+          vectorStrokes.push(finishedStroke);
+          saveVectorStrokes();
+        }
+        recentlyFinishedStrokes.add(data.strokeId);
+        setTimeout(() => recentlyFinishedStrokes.delete(data.strokeId), 6000);
       }
       activeRemoteStrokes.delete(data.strokeId);
       debouncedSaveDrawing();
@@ -2568,8 +2604,15 @@
 
     function drawRemoteStroke(stroke, periodIndex) {
       if (!stroke || !stroke.points || stroke.points.length === 0) return;
-      if (stroke.strokeId && activeRemoteStrokes.has(stroke.strokeId)) {
-        activeRemoteStrokes.delete(stroke.strokeId);
+      const sId = stroke.strokeId || stroke.id;
+      if (sId && (activeRemoteStrokes.has(sId) || recentlyFinishedStrokes.has(sId))) {
+        if (!vectorStrokes.some(s => (s.id || s.strokeId) === sId)) {
+          stroke.id = stroke.id || sId;
+          stroke.strokeId = stroke.strokeId || sId;
+          vectorStrokes.push(stroke);
+          saveVectorStrokes();
+        }
+        activeRemoteStrokes.delete(sId);
         debouncedSaveDrawing();
         return;
       }
@@ -2628,7 +2671,9 @@
         currentColor = prevColor;
         currentSize = prevSize;
 
-        if (!vectorStrokes.some(s => s.id === stroke.strokeId)) {
+        stroke.id = stroke.id || sId;
+        stroke.strokeId = stroke.strokeId || sId;
+        if (!vectorStrokes.some(s => (s.id || s.strokeId) === sId)) {
           vectorStrokes.push(stroke);
           saveVectorStrokes();
         }
@@ -2787,12 +2832,28 @@
           }
         }
       },
-      remoteEraseStrokes: (strokeIds) => {
+      remoteEraseStrokes: (strokeIds, periodIndex) => {
         if (!Array.isArray(strokeIds) || strokeIds.length === 0) return;
+        const targetPeriod = (periodIndex !== undefined) ? periodIndex : state.currentPeriodIndex;
         const set = new Set(strokeIds);
-        vectorStrokes = vectorStrokes.filter(s => !set.has(s.id));
-        saveVectorStrokes();
-        redrawAllVectorStrokes();
+        if (targetPeriod === state.currentPeriodIndex) {
+          vectorStrokes = vectorStrokes.filter(s => !set.has(s.id || s.strokeId));
+          saveVectorStrokes();
+          redrawAllVectorStrokes();
+        } else {
+          const p = state.periods[targetPeriod];
+          if (p) {
+            const key = `himbiorus_vector_strokes_${p.id}`;
+            try {
+              const saved = localStorage.getItem(key);
+              if (saved) {
+                const list = JSON.parse(saved);
+                const filtered = list.filter(s => !set.has(s.id || s.strokeId));
+                localStorage.setItem(key, JSON.stringify(filtered));
+              }
+            } catch (e) {}
+          }
+        }
       },
       getDrawingsBackup: () => {
         const drawings = {};
@@ -2945,7 +3006,7 @@
 
   function createPlacedImageElement(imgObj, periodId) {
     const container = document.createElement('div');
-    container.className = 'placed-image-item';
+    container.className = 'placed-image-item' + (imgObj.pinned ? ' pinned' : '');
     container.setAttribute('data-id', imgObj.id);
     container.style.left = imgObj.x + 'px';
     container.style.top = imgObj.y + 'px';
@@ -2955,6 +3016,27 @@
     const img = document.createElement('img');
     img.src = imgObj.src;
     img.alt = 'Фото расписания';
+    img.setAttribute('draggable', 'false');
+
+    const pinBtn = document.createElement('button');
+    pinBtn.className = 'placed-image-pin';
+    pinBtn.title = imgObj.pinned ? 'Разблокировать фото' : 'Закрепить фото (рисовать поверх)';
+    pinBtn.textContent = imgObj.pinned ? '🔒' : '📌';
+    pinBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      imgObj.pinned = !imgObj.pinned;
+      container.classList.toggle('pinned', !!imgObj.pinned);
+      pinBtn.textContent = imgObj.pinned ? '🔒' : '📌';
+      pinBtn.title = imgObj.pinned ? 'Разблокировать фото' : 'Закрепить фото (рисовать поверх)';
+      savePlacedImagesForPeriod(periodId);
+      if (window.SyncEngine && typeof window.SyncEngine.broadcastImageUpdate === 'function') {
+        window.SyncEngine.broadcastImageUpdate({
+          periodId: periodId,
+          periodIndex: state.currentPeriodIndex,
+          image: { id: imgObj.id, x: imgObj.x, y: imgObj.y, width: imgObj.width, height: imgObj.height, pinned: !!imgObj.pinned }
+        });
+      }
+    });
 
     const delBtn = document.createElement('button');
     delBtn.className = 'placed-image-delete';
@@ -2966,6 +3048,7 @@
     });
 
     container.appendChild(img);
+    container.appendChild(pinBtn);
     container.appendChild(delBtn);
 
     // 4 маркера изменения размера и свободного растяжения
@@ -2990,9 +3073,11 @@
     let initialTop = 0;
 
     container.addEventListener('pointerdown', (e) => {
-      if (e.target.classList.contains('resize-handle') || e.target.classList.contains('placed-image-delete')) {
+      if (imgObj.pinned) return;
+      if (e.target.classList.contains('resize-handle') || e.target.classList.contains('placed-image-delete') || e.target.classList.contains('placed-image-pin')) {
         return;
       }
+      e.preventDefault();
       e.stopPropagation();
       try { container.setPointerCapture(e.pointerId); } catch(err) {}
       isDragging = true;
@@ -3006,6 +3091,7 @@
 
     container.addEventListener('pointermove', (e) => {
       if (!isDragging) return;
+      e.preventDefault();
       e.stopPropagation();
       const dx = e.clientX - startX;
       const dy = e.clientY - startY;
@@ -3023,7 +3109,8 @@
       if (window.SyncEngine && typeof window.SyncEngine.broadcastImageUpdate === 'function') {
         window.SyncEngine.broadcastImageUpdate({
           periodId: periodId,
-          image: { id: imgObj.id, x: imgObj.x, y: imgObj.y, width: imgObj.width, height: imgObj.height }
+          periodIndex: state.currentPeriodIndex,
+          image: { id: imgObj.id, x: imgObj.x, y: imgObj.y, width: imgObj.width, height: imgObj.height, pinned: !!imgObj.pinned }
         });
       }
     };
@@ -3042,6 +3129,8 @@
     let initialTop = 0;
 
     handle.addEventListener('pointerdown', (e) => {
+      if (imgObj.pinned) return;
+      e.preventDefault();
       e.stopPropagation();
       try { handle.setPointerCapture(e.pointerId); } catch(err) {}
       isResizing = true;
@@ -3056,6 +3145,7 @@
 
     handle.addEventListener('pointermove', (e) => {
       if (!isResizing) return;
+      e.preventDefault();
       e.stopPropagation();
       const dx = e.clientX - startX;
       const dy = e.clientY - startY;
@@ -3098,7 +3188,8 @@
       if (window.SyncEngine && typeof window.SyncEngine.broadcastImageUpdate === 'function') {
         window.SyncEngine.broadcastImageUpdate({
           periodId: periodId,
-          image: { id: imgObj.id, x: imgObj.x, y: imgObj.y, width: imgObj.width, height: imgObj.height }
+          periodIndex: state.currentPeriodIndex,
+          image: { id: imgObj.id, x: imgObj.x, y: imgObj.y, width: imgObj.width, height: imgObj.height, pinned: !!imgObj.pinned }
         });
       }
     };
@@ -3114,7 +3205,7 @@
       const rawUrl = e.target.result;
       const img = new Image();
       img.onload = () => {
-        const maxDim = 1200;
+        const maxDim = 800;
         let w = img.naturalWidth || 400;
         let h = img.naturalHeight || 300;
         if (w > maxDim || h > maxDim) {
@@ -3131,7 +3222,7 @@
         compressCanvas.height = h;
         const cCtx = compressCanvas.getContext('2d');
         cCtx.drawImage(img, 0, 0, w, h);
-        const compressedDataUrl = compressCanvas.toDataURL('image/jpeg', 0.82);
+        const compressedDataUrl = compressCanvas.toDataURL('image/jpeg', 0.75);
         compressCanvas.width = 0;
         compressCanvas.height = 0;
 
@@ -3149,7 +3240,8 @@
           x: Math.max(30, scrollLeft + 40),
           y: Math.max(30, Math.min(scrollTop + 60, 400)),
           width: displayW,
-          height: displayH
+          height: displayH,
+          pinned: false
         };
 
         if (!placedImages[pId]) placedImages[pId] = [];
@@ -3162,6 +3254,7 @@
         if (window.SyncEngine && typeof window.SyncEngine.broadcastImageAdd === 'function') {
           window.SyncEngine.broadcastImageAdd({
             periodId: pId,
+            periodIndex: state.currentPeriodIndex,
             image: newImageObj
           });
         }
@@ -3182,6 +3275,7 @@
     if (window.SyncEngine && typeof window.SyncEngine.broadcastImageDelete === 'function') {
       window.SyncEngine.broadcastImageDelete({
         periodId: pId,
+        periodIndex: state.currentPeriodIndex,
         imageId: imageId
       });
     }
@@ -3192,14 +3286,42 @@
     loadPlacedImagesForPeriod(curPid);
 
     const insertPhotoBtn = document.getElementById('tool-insert-photo');
+    const menuPhotoBtn = document.getElementById('menu-insert-photo-btn');
     const photoFileInput = document.getElementById('stylus-photo-input');
+
     insertPhotoBtn?.addEventListener('click', () => {
       photoFileInput?.click();
     });
+    menuPhotoBtn?.addEventListener('click', () => {
+      photoFileInput?.click();
+    });
+
     photoFileInput?.addEventListener('change', (e) => {
       if (e.target.files && e.target.files[0]) {
         handleImageUpload(e.target.files[0]);
         photoFileInput.value = '';
+      }
+    });
+
+    // Вставка из буфера обмена (Ctrl+V) для ПК
+    window.addEventListener('paste', (e) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.startsWith('image/')) {
+          const file = items[i].getAsFile();
+          if (file) {
+            handleImageUpload(file);
+            break;
+          }
+        }
+      }
+    });
+
+    // Снятие выделения фото при клике вне его
+    window.addEventListener('pointerdown', (e) => {
+      if (!e.target.closest('.placed-image-item') && !e.target.closest('#tool-insert-photo') && !e.target.closest('#menu-insert-photo-btn')) {
+        document.querySelectorAll('.placed-image-item').forEach(i => i.classList.remove('selected'));
       }
     });
   }
@@ -3614,35 +3736,40 @@
       },
 
       onStrokeErase: (data) => {
-        if (!data || !data.strokeIds) return;
+        if (!data) return;
+        const strokeIds = data.strokeIds || (data.strokeId ? [data.strokeId] : []);
+        if (strokeIds.length === 0) return;
+        const pIndex = data.periodIndex !== undefined ? data.periodIndex : state.currentPeriodIndex;
         if (window.GoodNotesStylus && typeof window.GoodNotesStylus.remoteEraseStrokes === 'function') {
-          window.GoodNotesStylus.remoteEraseStrokes(data.strokeIds);
+          window.GoodNotesStylus.remoteEraseStrokes(strokeIds, pIndex);
         }
       },
 
       onImageAdd: (data) => {
-        if (!data || !data.image || !data.periodId) return;
-        if (!placedImages[data.periodId]) placedImages[data.periodId] = [];
-        if (!placedImages[data.periodId].some(im => im.id === data.image.id)) {
-          placedImages[data.periodId].push(data.image);
-          savePlacedImagesForPeriod(data.periodId);
+        if (!data || !data.image) return;
+        const pId = data.periodId || (data.periodIndex !== undefined && state.periods[data.periodIndex] ? state.periods[data.periodIndex].id : (state.periods[state.currentPeriodIndex]?.id || 'default'));
+        if (!placedImages[pId]) placedImages[pId] = [];
+        if (!placedImages[pId].some(im => im.id === data.image.id)) {
+          placedImages[pId].push(data.image);
+          savePlacedImagesForPeriod(pId);
           const curPid = state.periods[state.currentPeriodIndex]?.id;
-          if (curPid === data.periodId) {
+          if (curPid === pId) {
             renderPlacedImages(curPid);
           }
         }
       },
 
       onImageUpdate: (data) => {
-        if (!data || !data.image || !data.periodId) return;
-        const list = placedImages[data.periodId];
+        if (!data || !data.image) return;
+        const pId = data.periodId || (data.periodIndex !== undefined && state.periods[data.periodIndex] ? state.periods[data.periodIndex].id : (state.periods[state.currentPeriodIndex]?.id || 'default'));
+        const list = placedImages[pId];
         if (list) {
           const target = list.find(im => im.id === data.image.id);
           if (target) {
             Object.assign(target, data.image);
-            savePlacedImagesForPeriod(data.periodId);
+            savePlacedImagesForPeriod(pId);
             const curPid = state.periods[state.currentPeriodIndex]?.id;
-            if (curPid === data.periodId) {
+            if (curPid === pId) {
               renderPlacedImages(curPid);
             }
           }
@@ -3650,13 +3777,15 @@
       },
 
       onImageDelete: (data) => {
-        if (!data || !data.imageId || !data.periodId) return;
-        const list = placedImages[data.periodId];
+        const imageId = data?.imageId || (typeof data === 'string' ? data : null);
+        if (!data || !imageId) return;
+        const pId = data.periodId || (data.periodIndex !== undefined && state.periods[data.periodIndex] ? state.periods[data.periodIndex].id : (state.periods[state.currentPeriodIndex]?.id || 'default'));
+        const list = placedImages[pId];
         if (list) {
-          placedImages[data.periodId] = list.filter(im => im.id !== data.imageId);
-          savePlacedImagesForPeriod(data.periodId);
+          placedImages[pId] = list.filter(im => im.id !== imageId);
+          savePlacedImagesForPeriod(pId);
           const curPid = state.periods[state.currentPeriodIndex]?.id;
-          if (curPid === data.periodId) {
+          if (curPid === pId) {
             renderPlacedImages(curPid);
           }
         }
