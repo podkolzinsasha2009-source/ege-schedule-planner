@@ -435,17 +435,23 @@ main { position: relative; }
 
 /* ------------------------------------------------------------------ плашки */
 
+/* Невыполненная плашка залита цветом предмета, выполненная — серая и тусклая.
+   Тест или ДЗ к занятию — тот же цвет, но прозрачнее. */
 .card {
   --c: var(--general);
-  position: relative; padding: 8px 9px 9px 12px; border-radius: 11px;
-  border: 1px solid var(--line); background: var(--surface-2);
+  --fill: 30%;
+  --edge: 55%;
+  position: relative; padding: 8px 9px 9px 13px; border-radius: 11px;
+  border: 1px solid color-mix(in srgb, var(--c) var(--edge), transparent);
+  background: color-mix(in srgb, var(--c) var(--fill), var(--surface));
   cursor: grab; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
-  transition: transform 0.25s var(--ease), border-color 0.2s, box-shadow 0.25s, opacity 0.2s;
+  transition: transform 0.25s var(--ease), border-color 0.2s, box-shadow 0.25s, opacity 0.25s, background 0.25s, filter 0.25s;
 }
+:root[data-theme="light"] .card { --fill: 20%; --edge: 60%; }
 .card::before {
-  content: ''; position: absolute; left: 4px; top: 9px; bottom: 9px; width: 3px; border-radius: 3px; background: var(--c);
+  content: ''; position: absolute; left: 4px; top: 8px; bottom: 8px; width: 3px; border-radius: 3px; background: var(--c);
 }
-.card:hover { border-color: color-mix(in srgb, var(--c) 45%, transparent); box-shadow: 0 8px 22px -14px var(--c); transform: translateY(-1px); }
+.card:hover { box-shadow: 0 8px 22px -12px var(--c); transform: translateY(-1px); }
 .card.bio { --c: var(--bio); }
 .card.chem { --c: var(--chem); }
 .card.rus { --c: var(--rus); }
@@ -455,39 +461,54 @@ main { position: relative; }
   display: inline-flex; align-items: center; height: 17px; padding: 0 6px; border-radius: 6px;
   font-size: 9px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; white-space: nowrap;
 }
-.pill.subject { color: var(--c); background: color-mix(in srgb, var(--c) 14%, transparent); }
-.pill.type { color: var(--muted); background: var(--surface-3); }
-.pill.icon { min-width: 17px; justify-content: center; padding: 0; background: var(--accent-soft); color: var(--accent); font-size: 11px; }
-.card-time { margin-left: 2px; font-size: 10px; font-weight: 700; color: var(--muted); }
+.pill.subject { color: #0b0b0d; background: var(--c); }
+.pill.type { color: color-mix(in srgb, var(--text) 85%, transparent); background: rgba(0, 0, 0, 0.28); }
+:root[data-theme="light"] .pill.type { background: rgba(255, 255, 255, 0.65); }
+.pill.icon { min-width: 17px; justify-content: center; padding: 0; background: var(--accent); color: #fff; font-size: 11px; }
+.card-time { margin-left: 2px; font-size: 10px; font-weight: 800; color: color-mix(in srgb, var(--text) 80%, transparent); }
 
 .card-check {
   margin-left: auto; flex: none; width: 20px; height: 20px; border-radius: 6px;
-  border: 1.5px solid var(--line-2); background: none; position: relative;
+  border: 1.5px solid color-mix(in srgb, var(--text) 45%, transparent); background: rgba(0, 0, 0, 0.18); position: relative;
   transition: background 0.2s, border-color 0.2s, transform 0.2s var(--ease);
 }
-.card-check:hover { border-color: var(--c); }
+:root[data-theme="light"] .card-check { background: rgba(255, 255, 255, 0.7); }
+.card-check:hover { border-color: var(--text); }
 .card-check:active { transform: scale(0.85); }
-.card.is-done .card-check { background: var(--c); border-color: transparent; }
+
+.card-title { margin-top: 5px; font-size: 12.5px; font-weight: 700; line-height: 1.25; letter-spacing: -0.01em; }
+.card-sub {
+  margin-top: 3px; font-size: 11px; line-height: 1.3; color: color-mix(in srgb, var(--text) 72%, transparent);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+
+.card.is-companion { --fill: 14%; --edge: 38%; border-style: dashed; }
+:root[data-theme="light"] .card.is-companion { --fill: 9%; --edge: 45%; }
+.card.is-companion .card-title { font-weight: 600; font-size: 12px; }
+
+.card.cat-mock .pill.type, .card.cat-attestation .pill.type { color: #fff; background: var(--accent); }
+
+/* Выполнено: без цвета и приглушённо */
+.card.is-done {
+  --c: #8a8680;
+  --fill: 0%;
+  --edge: 18%;
+  opacity: 0.4;
+  filter: grayscale(1);
+  box-shadow: none;
+}
+.card.is-done:hover { opacity: 0.7; }
+.card.is-done .card-title { text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--text) 50%, transparent); }
+.card.is-done .card-check { background: var(--text); border-color: transparent; }
 .card.is-done .card-check::after {
   content: ''; position: absolute; left: 6px; top: 2px; width: 5px; height: 10px;
   border: solid var(--bg); border-width: 0 2px 2px 0; transform: rotate(45deg);
 }
 
-.card-title { margin-top: 5px; font-size: 12.5px; font-weight: 700; line-height: 1.25; letter-spacing: -0.01em; }
-.card-sub {
-  margin-top: 3px; font-size: 11px; line-height: 1.3; color: var(--muted);
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
-}
-
-.card.is-companion { background: transparent; border-style: dashed; border-color: color-mix(in srgb, var(--c) 30%, var(--line)); }
-.card.is-companion::before { opacity: 0.45; }
-.card.is-companion .card-title { font-weight: 600; font-size: 12px; color: color-mix(in srgb, var(--text) 85%, transparent); }
-
-.card.cat-payment { --c: var(--general); }
-.card.cat-mock .pill.type, .card.cat-attestation .pill.type { color: var(--accent); background: var(--accent-soft); }
-
-.card.is-done { opacity: 0.55; }
-.card.is-done .card-title { text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--text) 40%, transparent); }
+/* Тест или ДЗ стоит сразу под своим занятием — полоска слева соединяет их */
+.card.link-below::before { bottom: -8px; border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+.card.link-above::before { top: -8px; border-top-left-radius: 0; border-top-right-radius: 0; }
+.card.link-below { z-index: 1; }
 
 .card.is-drag-source { opacity: 0.25; }
 .drag-ghost {

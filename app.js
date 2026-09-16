@@ -177,13 +177,25 @@
 
   // ------------------------------------------------------------------ отрисовка
 
-  function cardHtml(it) {
+  // Помечаем пары «занятие → его тест/ДЗ», стоящие подряд, чтобы соединить их полоской
+  function linkedCardsHtml(list) {
+    return list.map((it, i) => {
+      const next = list[i + 1];
+      const prev = list[i - 1];
+      const links = [];
+      if (next && next.isCompanion && next.parentId === it.id) links.push('link-below');
+      if (prev && it.isCompanion && it.parentId === prev.id) links.push('link-above');
+      return cardHtml(it, links.join(' '));
+    }).join('');
+  }
+
+  function cardHtml(it, extraClass) {
     const subject = SUBJECTS[it.subject] || SUBJECTS.general;
     const category = CATEGORIES[it.category] || '';
     const icon = ICONS[it.icon];
     const typeLabel = it.isCompanion ? (it.category === 'homework' ? 'ДЗ' : 'Тест') : category;
     return `
-      <div class="card ${it.subject || 'general'} cat-${it.category || 'theory'}${it.isCompanion ? ' is-companion' : ''}${it.completed ? ' is-done' : ''}" data-id="${escapeHtml(it.id)}">
+      <div class="card ${it.subject || 'general'} cat-${it.category || 'theory'}${it.isCompanion ? ' is-companion' : ''}${it.completed ? ' is-done' : ''}${extraClass ? ' ' + extraClass : ''}" data-id="${escapeHtml(it.id)}">
         <div class="card-top">
           <span class="pill subject">${subject.label}</span>
           <span class="pill type">${escapeHtml(typeLabel)}</span>
@@ -240,7 +252,7 @@
                 <button class="day-add" type="button" data-add="${dateKey}" aria-label="Добавить плашку">+</button>
               </header>
               <div class="day-list" data-drop="${dateKey}">
-                ${list.map(cardHtml).join('')}
+                ${linkedCardsHtml(list)}
               </div>
             </section>`;
         }).join('')}
@@ -256,7 +268,7 @@
     if (!listEl) return;
     const list = (itemsByDate().backlog || []);
     listEl.innerHTML = list.length
-      ? list.map(cardHtml).join('')
+      ? linkedCardsHtml(list)
       : '<p class="empty-hint">Перетащите сюда плашку, чтобы отложить её.</p>';
     $$('[data-backlog-count]').forEach(el => {
       el.textContent = list.length;
@@ -496,6 +508,7 @@
 
     const ghost = card.cloneNode(true);
     ghost.classList.add('drag-ghost');
+    ghost.classList.remove('link-below', 'link-above');
     ghost.style.width = card.offsetWidth + 'px';
     ghost.style.setProperty('--z', ui.zoom);
     document.body.appendChild(ghost);

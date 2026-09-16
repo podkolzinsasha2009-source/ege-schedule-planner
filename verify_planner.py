@@ -96,7 +96,7 @@ def test_site_structure():
         with open(os.path.join(DIR, name), "r", encoding="utf-8") as f:
             return f.read()
 
-    scripts = ["store.js", "ink.js", "photos.js", "app.js", "sw.js"]
+    scripts = ["store.js", "shapes.js", "ink.js", "photos.js", "app.js", "sw.js"]
     for name in scripts:
         result = subprocess.run(["node", "--check", os.path.join(DIR, name)], capture_output=True, text=True)
         assert result.returncode == 0, f"Syntax error in {name}: {result.stderr}"
@@ -106,7 +106,7 @@ def test_site_structure():
     for element_id in ["board-viewport", "board", "weeks", "photos-layer", "ink-canvas", "overlay-canvas",
                        "ink-toolbar", "period-tabs", "sync-modal", "item-modal", "backlog", "boot-rescue"]:
         assert f'id="{element_id}"' in html, f"index.html missing #{element_id}"
-    for name in ["schedule_data.js", "qrcode.min.js", "store.js", "ink.js", "photos.js", "app.js"]:
+    for name in ["schedule_data.js", "qrcode.min.js", "store.js", "shapes.js", "ink.js", "photos.js", "app.js"]:
         assert f'src="{name}' in html, f"index.html does not load {name}"
     assert "manifest.json" in html and "ХимБиоРус_Расписание_ЕГЭ.docx" in html
     print("✓ index.html contains the board, stylus, photo, sync and item dialogs.")

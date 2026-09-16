@@ -13,6 +13,9 @@
   const VIEW_MARGIN = 240; // запас вокруг видимой области, чтобы при прокрутке не было пустых краёв
   const LIVE_INTERVAL = 60;
   const STALE_LIVE_MS = 6000;
+  // «Нарисуй и задержи»: как в GoodNotes и Procreate (там задержка настраивается 0,1–1,5 с)
+  const SHAPE_HOLD_MS = 500;
+  const SHAPE_HOLD_TOLERANCE = 6; // экранных px — дрожание руки не сбрасывает удержание
 
   let HB, Store;
   let board, ink, inkCtx, overlay, overlayCtx;
@@ -28,7 +31,8 @@
     color: '#ff7a1a',
     size: 3,
     pressure: true,
-    stylusOnly: false
+    stylusOnly: false,
+    shapes: true
   };
   let penSeen = false;
 
@@ -425,6 +429,7 @@
   }
 
   function extendStroke(e) {
+    if (current.snapped) return; // фигура уже выпрямлена — ждём, пока стилус оторвут
     const [x, y] = boardPoint(e);
     const pr = pressureOf(e);
     const pts = current.pts;
@@ -447,11 +452,37 @@
       requestOverlay();
     }
 
+    watchHold(x, y);
+
     const now = performance.now();
     if (now - lastLiveSent > LIVE_INTERVAL) {
       lastLiveSent = now;
       sendLive();
     }
+  }
+
+  // Если стилус замер, не отрываясь, — пробуем превратить линию в ровную фигуру
+  function watchHold(x, y) {
+    if (!settings.shapes || (current.stroke.t !== 'pen' && current.stroke.t !== 'hl')) return;
+    const tolerance = SHAPE_HOLD_TOLERANCE / (layout.zoom || 1);
+    const anchor = current.holdAnchor;
+    if (anchor && Math.abs(anchor[0] - x) <= tolerance && Math.abs(anchor[1] - y) <= tolerance) return;
+    current.holdAnchor = [x, y];
+    clearTimeout(current.holdTimer);
+    const stroke = current;
+    current.holdTimer = setTimeout(() => snapShape(stroke), SHAPE_HOLD_MS);
+  }
+
+  function snapShape(stroke) {
+    if (current !== stroke || stroke.snapped || !window.HBShapes) return;
+    const shape = window.HBShapes.recognize(stroke.pts);
+    if (!shape) return;
+    stroke.pts = shape.points;
+    stroke.snapped = true;
+    if (navigator.vibrate) navigator.vibrate(10);
+    if (stroke.stroke.t === 'pen') redrawAll(); // стираем кривую линию и рисуем ровную
+    requestOverlay();
+    sendLive();
   }
 
   // Отрезок между серединами соседних точек — та же кривая, что и в drawStroke
@@ -503,6 +534,7 @@
     const done = current;
     current = null;
     if (!done) return;
+    clearTimeout(done.holdTimer);
     if (placeAfterStroke) {
       placeAfterStroke = false;
       schedulePlace(true);
@@ -533,6 +565,7 @@
   function discardStroke() {
     const was = current;
     current = null;
+    if (was) clearTimeout(was.holdTimer);
     if (was && (was.stroke.t === 'eraser' || was.stroke.t === 'pen')) redrawAll();
     if (Store.room && was) Store.update({ ['live/' + Store.clientId]: null }, { ephemeral: true, silent: true });
     requestOverlay();
@@ -635,6 +668,7 @@
     $('#ink-size-value').textContent = settings.size;
     $('#ink-size-dot').style.setProperty('--dot', Math.min(22, 3 + settings.size) + 'px');
     $('#ink-pressure').classList.toggle('is-active', settings.pressure);
+    $('#ink-shapes').classList.toggle('is-active', settings.shapes);
     $('#ink-stylus-only').classList.toggle('is-active', settings.stylusOnly || penSeen);
     $('#ink-stylus-only').title = penSeen
       ? 'Найден стилус: пальцы и ладонь не рисуют (прокрутка, щипок, 2 пальца — отмена)'
@@ -669,6 +703,13 @@
       settings.pressure = !settings.pressure;
       saveSettings();
       HB.toast(settings.pressure ? 'Нажим стилуса включён' : 'Нажим стилуса выключен');
+    });
+    $('#ink-shapes').addEventListener('click', () => {
+      settings.shapes = !settings.shapes;
+      saveSettings();
+      HB.toast(settings.shapes
+        ? 'Фигуры: нарисуйте и задержите стилус на полсекунды — линия выпрямится'
+        : 'Выпрямление фигур выключено');
     });
     $('#ink-stylus-only').addEventListener('click', () => {
       if (penSeen) {
