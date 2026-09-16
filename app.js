@@ -295,13 +295,27 @@
         dropzone.setAttribute('data-date', dateKey);
         setupDropzoneEvents(dropzone, dateKey, false);
 
-        // Фильтрация и рендеринг карточек
-        const filteredItems = dayData.items.filter(item => isItemVisible(item));
+        // Фильтрация и кластеризация связанных активностей (урок + сопутствующий тест + ДЗ)
+        const visibleItems = dayData.items.filter(item => isItemVisible(item));
+        const parentIds = new Set(visibleItems.filter(it => !it.isCompanion).map(it => it.id));
+        const companionsMap = new Map();
+        const primaryItems = [];
 
-        filteredItems.forEach((item, itemIndex) => {
-          // Реальный индекс в массиве dayData.items
+        visibleItems.forEach(item => {
+          if (item.isCompanion && item.parentId && parentIds.has(item.parentId)) {
+            if (!companionsMap.has(item.parentId)) {
+              companionsMap.set(item.parentId, []);
+            }
+            companionsMap.get(item.parentId).push(item);
+          } else {
+            primaryItems.push(item);
+          }
+        });
+
+        primaryItems.forEach((item) => {
           const realIndex = dayData.items.indexOf(item);
-          const card = createCardElement(item, dateKey, realIndex, false);
+          const attachedCompanions = companionsMap.get(item.id) || [];
+          const card = createCardElement(item, dateKey, realIndex, false, attachedCompanions);
           dropzone.appendChild(card);
         });
 
@@ -361,13 +375,23 @@
   // СОЗДАНИЕ DOM-ЭЛЕМЕНТА КАРТОЧКИ
   // ==========================================================================
 
-  function createCardElement(item, dateKey, index, isBacklog) {
+  function createCardElement(item, dateKey, index, isBacklog, attachedCompanions = []) {
     const card = document.createElement('div');
-    card.className = `schedule-card ${item.subject} ${item.category} ${item.isCompanion ? 'is-companion' : ''} ${item.completed ? 'completed' : ''}`;
+    const hasAccordion = attachedCompanions && attachedCompanions.length > 0;
+    card.className = `schedule-card ${item.subject} ${item.category} ${item.isCompanion ? 'is-companion' : ''} ${item.completed ? 'completed' : ''} ${hasAccordion ? 'has-accordion' : ''}`;
     card.draggable = true;
     card.setAttribute('data-id', item.id);
     card.setAttribute('data-index', index);
     if (dateKey) card.setAttribute('data-date', dateKey);
+
+    // Предмет
+    const subjectLabels = {
+      bio: 'Биология',
+      chem: 'Химия',
+      rus: 'Русский',
+      general: 'Общее'
+    };
+    const subjectPillHtml = `<span class="subject-pill ${item.subject}">${subjectLabels[item.subject] || ''}</span>`;
 
     // Иконка
     let iconHtml = '';
@@ -399,6 +423,7 @@
       <div class="card-header-row">
         <div class="card-badges">
           <span class="drag-handle" title="Перетащить пальцем или мышкой">⠿</span>
+          ${subjectPillHtml}
           ${timeHtml}
           ${typePillHtml}
           ${iconHtml}
@@ -420,6 +445,7 @@
       item.completed = checkEl.checked;
       card.classList.toggle('completed', item.completed);
       saveState();
+      updateProgress();
     });
 
     // Редактирование
@@ -438,9 +464,103 @@
       }
     });
 
+    // Раскрывающийся чек-лист сопутствующих активностей (тест + ДЗ)
+    if (hasAccordion) {
+      const compDoneCount = attachedCompanions.filter(c => c.completed).length;
+      const totalCompCount = attachedCompanions.length;
+      const allDone = compDoneCount === totalCompCount;
+
+      const accordionEl = document.createElement('div');
+      accordionEl.className = 'card-accordion';
+
+      const toggleBtn = document.createElement('button');
+      toggleBtn.type = 'button';
+      toggleBtn.className = `accordion-toggle ${allDone ? 'all-done' : ''}`;
+      toggleBtn.title = 'Развернуть связанные тесты и письменные ДЗ';
+      toggleBtn.innerHTML = `
+        <div class="accordion-toggle-left">
+          <span class="accordion-arrow">▸</span>
+          <span class="accordion-label">Задания (${compDoneCount}/${totalCompCount})</span>
+        </div>
+        <div class="accordion-chips">
+          ${attachedCompanions.map(c => `
+            <span class="mini-chip ${c.category}">${c.category === 'test' ? 'Тест' : 'ДЗ'}</span>
+          `).join('')}
+        </div>
+      `;
+
+      const checklistEl = document.createElement('div');
+      checklistEl.className = 'accordion-checklist';
+      checklistEl.style.display = 'none';
+
+      attachedCompanions.forEach(comp => {
+        const row = document.createElement('div');
+        row.className = `checklist-row ${comp.completed ? 'completed' : ''}`;
+        row.innerHTML = `
+          <label class="checklist-label">
+            <input type="checkbox" class="checklist-check" ${comp.completed ? 'checked' : ''}>
+            <span class="mini-tag ${comp.category}">${comp.category === 'test' ? 'ТЕСТ' : 'ДЗ'}</span>
+            <span class="checklist-task-title">${escapeHtml(comp.title)}</span>
+          </label>
+          <button class="checklist-del-btn" title="Удалить это задание">✕</button>
+        `;
+
+        const chk = row.querySelector('.checklist-check');
+        chk.addEventListener('click', (e) => e.stopPropagation());
+        chk.addEventListener('change', (e) => {
+          e.stopPropagation();
+          comp.completed = chk.checked;
+          row.classList.toggle('completed', comp.completed);
+          saveState();
+          updateProgress();
+          const newDone = attachedCompanions.filter(c => c.completed).length;
+          const labelEl = toggleBtn.querySelector('.accordion-label');
+          if (labelEl) labelEl.textContent = `Задания (${newDone}/${totalCompCount})`;
+          toggleBtn.classList.toggle('all-done', newDone === totalCompCount);
+        });
+
+        row.querySelector('.checklist-del-btn').addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (confirm(`Удалить задание «${comp.title}»?`)) {
+            if (isBacklog) {
+              const cIdx = state.backlog.indexOf(comp);
+              if (cIdx !== -1) state.backlog.splice(cIdx, 1);
+            } else {
+              const p = findPeriodByDate(dateKey);
+              if (p && p.days[dateKey]) {
+                const cIdx = p.days[dateKey].items.indexOf(comp);
+                if (cIdx !== -1) p.days[dateKey].items.splice(cIdx, 1);
+              }
+            }
+            saveState();
+            renderCalendar();
+            renderBacklog();
+          }
+        });
+
+        checklistEl.appendChild(row);
+      });
+
+      toggleBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isOpen = checklistEl.style.display !== 'none';
+        checklistEl.style.display = isOpen ? 'none' : 'flex';
+        toggleBtn.classList.toggle('expanded', !isOpen);
+        const arrow = toggleBtn.querySelector('.accordion-arrow');
+        if (arrow) arrow.textContent = isOpen ? '▸' : '▾';
+        if (window.GoodNotesStylus) {
+          setTimeout(() => window.GoodNotesStylus.resizeAndLoad(), 50);
+        }
+      });
+
+      accordionEl.appendChild(toggleBtn);
+      accordionEl.appendChild(checklistEl);
+      card.appendChild(accordionEl);
+    }
+
     // Настройка Drag-and-Drop для мыши и для планшетов (тач/стилус)
-    setupCardDragEvents(card, item, dateKey, index, isBacklog);
-    setupCardTouchEvents(card, item, dateKey, index, isBacklog);
+    setupCardDragEvents(card, item, dateKey, index, isBacklog, attachedCompanions);
+    setupCardTouchEvents(card, item, dateKey, index, isBacklog, attachedCompanions);
 
     return card;
   }
@@ -449,10 +569,11 @@
   // ЧИСТЫЙ МЕХАНИЗМ DRAG-AND-DROP («НИЧЕГО ЗА СОБОЙ НЕ ОСТАВЛЯЮТ»)
   // ==========================================================================
 
-  function setupCardDragEvents(card, item, dateKey, index, isBacklog) {
+  function setupCardDragEvents(card, item, dateKey, index, isBacklog, attachedCompanions = []) {
     card.addEventListener('dragstart', (e) => {
       dragData = {
         itemId: item.id,
+        companionIds: (attachedCompanions || []).map(c => c.id),
         sourceDateKey: dateKey,
         sourceIndex: index,
         sourceIsBacklog: isBacklog
@@ -473,7 +594,7 @@
   }
 
   // ПОЛНОЦЕННЫЙ ТАЧ-ПЕРЕНОС ДЛЯ ПЛАНШЕТОВ (IPAD / ANDROID)
-  function setupCardTouchEvents(card, item, dateKey, index, isBacklog) {
+  function setupCardTouchEvents(card, item, dateKey, index, isBacklog, attachedCompanions = []) {
     let touchStartX = 0;
     let touchStartY = 0;
     let isDragging = false;
@@ -488,6 +609,7 @@
       isDragging = true;
       dragData = {
         itemId: item.id,
+        companionIds: (attachedCompanions || []).map(c => c.id),
         sourceDateKey: dateKey,
         sourceIndex: index,
         sourceIsBacklog: isBacklog
@@ -725,18 +847,26 @@
 
     if (!sourceArray) return;
 
-    // 2. Находим элемент по индексу или id
-    let movedItem = null;
-    if (source.sourceIndex >= 0 && source.sourceIndex < sourceArray.length) {
-      movedItem = sourceArray.splice(source.sourceIndex, 1)[0];
-    } else {
-      const idx = sourceArray.findIndex(it => it.id === source.itemId);
-      if (idx !== -1) {
-        movedItem = sourceArray.splice(idx, 1)[0];
-      }
+    // 2. Находим основной элемент и его связанные компаньоны
+    let movedItems = [];
+    const pIdx = sourceArray.findIndex(it => it.id === source.itemId);
+    if (pIdx !== -1) {
+      movedItems.push(sourceArray.splice(pIdx, 1)[0]);
+    } else if (source.sourceIndex >= 0 && source.sourceIndex < sourceArray.length) {
+      movedItems.push(sourceArray.splice(source.sourceIndex, 1)[0]);
     }
 
-    if (!movedItem) return;
+    if (movedItems.length === 0) return;
+
+    // Извлекаем также сопутствующие компаньоны, если перемещался родительский блок
+    if (source.companionIds && source.companionIds.length > 0) {
+      source.companionIds.forEach(cId => {
+        const cIdx = sourceArray.findIndex(it => it.id === cId);
+        if (cIdx !== -1) {
+          movedItems.push(sourceArray.splice(cIdx, 1)[0]);
+        }
+      });
+    }
 
     // 3. Извлекаем целевой список
     let targetArray = null;
@@ -751,13 +881,13 @@
 
     if (!targetArray) {
       // Откатываем назад, если цель не найдена
-      sourceArray.push(movedItem);
+      sourceArray.push(...movedItems);
       return;
     }
 
     // 4. Вставляем элемент в целевой список на точный индекс
     const insertIdx = Math.min(Math.max(0, target.targetIndex), targetArray.length);
-    targetArray.splice(insertIdx, 0, movedItem);
+    targetArray.splice(insertIdx, 0, ...movedItems);
 
     // 5. Сохраняем состояние и перерисовываем
     saveState();
@@ -802,8 +932,26 @@
       return;
     }
 
-    state.backlog.forEach((item, index) => {
-      const card = createCardElement(item, null, index, true);
+    // Кластеризация связанных блоков внутри бэклога
+    const parentIds = new Set(state.backlog.filter(it => !it.isCompanion).map(it => it.id));
+    const companionsMap = new Map();
+    const primaryItems = [];
+
+    state.backlog.forEach(item => {
+      if (item.isCompanion && item.parentId && parentIds.has(item.parentId)) {
+        if (!companionsMap.has(item.parentId)) {
+          companionsMap.set(item.parentId, []);
+        }
+        companionsMap.get(item.parentId).push(item);
+      } else {
+        primaryItems.push(item);
+      }
+    });
+
+    primaryItems.forEach((item) => {
+      const realIndex = state.backlog.indexOf(item);
+      const attachedCompanions = companionsMap.get(item.id) || [];
+      const card = createCardElement(item, null, realIndex, true, attachedCompanions);
       dropzone.appendChild(card);
     });
   }
@@ -1061,6 +1209,35 @@
     closeBacklogBtn?.addEventListener('click', () => toggleDrawer(false));
     drawerOverlay?.addEventListener('click', () => toggleDrawer(false));
 
+    // Меню настроек
+    const settingsBtn = document.getElementById('settings-dropdown-btn');
+    const settingsMenu = document.getElementById('settings-dropdown-menu');
+    const settingsWrapper = document.getElementById('settings-dropdown-wrapper');
+
+    const toggleSettings = (forceState) => {
+      if (!settingsMenu) return;
+      const isOpen = typeof forceState === 'boolean' ? forceState : !settingsMenu.classList.contains('active');
+      settingsMenu.classList.toggle('active', isOpen);
+      settingsBtn?.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    };
+
+    settingsBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleSettings();
+    });
+
+    document.addEventListener('click', (e) => {
+      if (settingsWrapper && !settingsWrapper.contains(e.target)) {
+        toggleSettings(false);
+      }
+    });
+
+    settingsMenu?.addEventListener('click', (e) => {
+      if (e.target.closest('.dropdown-item') && !e.target.closest('label')) {
+        toggleSettings(false);
+      }
+    });
+
     // Сброс к исходному
     document.getElementById('reset-btn')?.addEventListener('click', resetToDefault);
 
@@ -1136,6 +1313,7 @@
     // Горячие клавиши (Esc для закрытия окон, стрелки для перелистывания)
     window.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
+        toggleSettings(false);
         closeModal();
         closeTabletModal();
         toggleDrawer(false);
@@ -1215,7 +1393,7 @@
     const mobDrawBtn = document.getElementById('mob-draw-btn');
     if (!canvas || !wrapper) return;
 
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { desynchronized: true, alpha: true }) || canvas.getContext('2d');
     let isDrawingMode = false;
     let isDrawing = false;
     let isPanning = false;
@@ -1230,11 +1408,24 @@
     let lastMidX = 0;
     let lastMidY = 0;
     let hasMoved = false;
+    let didDrawInStroke = false;
+    let currentStrokeBeforeSnap = null;
     let activeTouches = new Map();
     let undoStack = [];
-    const MAX_UNDO = 25;
+    let redoStack = [];
+    const MAX_UNDO = 30;
     let saveTimeout = null;
     let resizeObserver = null;
+    let isPenActive = false;
+    let penInactiveTimer = null;
+    let toastTimer = null;
+
+    let touchGesture = {
+      startTime: 0,
+      maxCount: 0,
+      hasMoved: false,
+      startPoints: new Map()
+    };
 
     function getPeriodKey() {
       const p = state.periods[state.currentPeriodIndex];
@@ -1248,6 +1439,41 @@
       }
       const num = parseInt(hex, 16);
       return `rgba(${(num >> 16) & 255}, ${(num >> 8) & 255}, ${num & 255}, ${alpha})`;
+    }
+
+    function takeSnapshot() {
+      if (!canvas || canvas.width === 0 || canvas.height === 0) return null;
+      const off = document.createElement('canvas');
+      off.width = canvas.width;
+      off.height = canvas.height;
+      const offCtx = off.getContext('2d');
+      offCtx.drawImage(canvas, 0, 0);
+      return off;
+    }
+
+    function restoreSnapshot(snap) {
+      if (!canvas || !ctx || !snap) return;
+      const dpr = window.devicePixelRatio || 1;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(snap, 0, 0);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    function showGestureToast(msg) {
+      let toast = document.getElementById('stylus-toast');
+      if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'stylus-toast';
+        toast.className = 'stylus-toast';
+        document.body.appendChild(toast);
+      }
+      toast.textContent = msg;
+      toast.classList.add('visible');
+      if (toastTimer) clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
+        toast.classList.remove('visible');
+      }, 750);
     }
 
     function resizeCanvas(preserveContent = true) {
@@ -1298,7 +1524,7 @@
 
     function debouncedSaveDrawing() {
       if (saveTimeout) clearTimeout(saveTimeout);
-      saveTimeout = setTimeout(saveDrawing, 300);
+      saveTimeout = setTimeout(saveDrawing, 400);
     }
 
     function clearCanvasOnly() {
@@ -1314,6 +1540,8 @@
       const key = getPeriodKey();
       const saved = localStorage.getItem(key);
       clearCanvasOnly();
+      undoStack = [];
+      redoStack = [];
       if (saved) {
         const img = new Image();
         img.onload = () => {
@@ -1327,22 +1555,32 @@
     }
 
     function saveUndo() {
-      if (!canvas) return;
-      if (undoStack.length >= MAX_UNDO) undoStack.shift();
-      undoStack.push(canvas.toDataURL('image/png'));
+      const snap = takeSnapshot();
+      if (snap) {
+        if (undoStack.length >= MAX_UNDO) undoStack.shift();
+        undoStack.push(snap);
+        redoStack = [];
+      }
     }
 
     function undo() {
       if (undoStack.length === 0) return;
+      const currentSnap = takeSnapshot();
       const prev = undoStack.pop();
-      clearCanvasOnly();
-      const img = new Image();
-      img.onload = () => {
-        const dpr = window.devicePixelRatio || 1;
-        ctx.drawImage(img, 0, 0, canvas.width / dpr, canvas.height / dpr);
-        debouncedSaveDrawing();
-      };
-      img.src = prev;
+      if (currentSnap) redoStack.push(currentSnap);
+      restoreSnapshot(prev);
+      debouncedSaveDrawing();
+      showGestureToast('↩️ Отмена');
+    }
+
+    function redo() {
+      if (redoStack.length === 0) return;
+      const currentSnap = takeSnapshot();
+      const next = redoStack.pop();
+      if (currentSnap) undoStack.push(currentSnap);
+      restoreSnapshot(next);
+      debouncedSaveDrawing();
+      showGestureToast('↪️ Повтор');
     }
 
     function updateToolCursor() {
@@ -1408,27 +1646,96 @@
       };
     }
 
-    // Touch event listeners to explicitly prevent default when palm rests
+    // Touch event listeners для Palm Rejection и мультитач-жестов GoodNotes
     canvas.addEventListener('touchstart', (e) => {
       if (!isDrawingMode) return;
-      if (palmRejectionOnlyPen && e.touches.length < 2 && currentTool !== 'pan') {
+      if (isPenActive) {
+        // Касания рукой при активном пере полностью блокируются
+        e.preventDefault();
+        return;
+      }
+
+      const now = Date.now();
+      if (e.touches.length === 1) {
+        touchGesture.startTime = now;
+        touchGesture.maxCount = 1;
+        touchGesture.hasMoved = false;
+        touchGesture.startPoints.clear();
+      } else {
+        touchGesture.maxCount = Math.max(touchGesture.maxCount, e.touches.length);
+      }
+
+      for (let i = 0; i < e.touches.length; i++) {
+        const t = e.touches[i];
+        touchGesture.startPoints.set(t.identifier, { x: t.clientX, y: t.clientY });
+      }
+
+      if (e.touches.length >= 2 || (palmRejectionOnlyPen && currentTool !== 'pan')) {
         e.preventDefault();
       }
     }, { passive: false });
 
     canvas.addEventListener('touchmove', (e) => {
       if (!isDrawingMode) return;
-      if (palmRejectionOnlyPen && e.touches.length < 2 && currentTool !== 'pan') {
+      if (isPenActive) {
+        e.preventDefault();
+        return;
+      }
+
+      for (let i = 0; i < e.touches.length; i++) {
+        const t = e.touches[i];
+        const init = touchGesture.startPoints.get(t.identifier);
+        if (init) {
+          if (Math.hypot(t.clientX - init.x, t.clientY - init.y) > 12) {
+            touchGesture.hasMoved = true;
+          }
+        }
+      }
+
+      if (e.touches.length >= 2 || (palmRejectionOnlyPen && currentTool !== 'pan')) {
         e.preventDefault();
       }
     }, { passive: false });
 
-    // Pointer Events на холсте
+    canvas.addEventListener('touchend', (e) => {
+      if (!isDrawingMode) return;
+      if (isPenActive) {
+        e.preventDefault();
+        return;
+      }
+
+      // Определение тапов 2 и 3 пальцами (GoodNotes / Procreate)
+      if (e.touches.length === 0) {
+        const duration = Date.now() - touchGesture.startTime;
+        if (!touchGesture.hasMoved && duration < 380) {
+          if (touchGesture.maxCount === 2) {
+            e.preventDefault();
+            undo();
+          } else if (touchGesture.maxCount === 3) {
+            e.preventDefault();
+            redo();
+          }
+        }
+        touchGesture.maxCount = 0;
+        touchGesture.startPoints.clear();
+      }
+    }, { passive: false });
+
+    // Pointer Events на холсте с аппаратной десинхронизацией
     canvas.addEventListener('pointerdown', (e) => {
       if (!isDrawingMode) return;
 
+      if (e.pointerType === 'pen') {
+        isPenActive = true;
+        if (penInactiveTimer) clearTimeout(penInactiveTimer);
+      }
+
       if (e.pointerType === 'touch') {
         activeTouches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (isPenActive || (palmRejectionOnlyPen && currentTool !== 'pan')) {
+          e.preventDefault();
+          return;
+        }
         if (activeTouches.size >= 2) {
           isDrawing = false;
           e.preventDefault();
@@ -1444,7 +1751,7 @@
         return;
       }
 
-      // Защита от ладони: касания руки и пальцев игнорируются и не вызывают смещений
+      // Жесткий Palm Rejection: при включенной защите касания рукой не рисуют
       if (palmRejectionOnlyPen && e.pointerType !== 'pen') {
         e.preventDefault();
         return;
@@ -1453,9 +1760,11 @@
       e.preventDefault();
       try { canvas.setPointerCapture(e.pointerId); } catch(err) {}
 
-      saveUndo();
+      // Фиксация слепка холста в памяти (GPU-to-GPU drawImage <0.1 мс, без зависаний toDataURL)
+      currentStrokeBeforeSnap = takeSnapshot();
       isDrawing = true;
       hasMoved = false;
+      didDrawInStroke = false;
 
       const coords = getCanvasCoords(e);
       const x = coords.x;
@@ -1472,6 +1781,7 @@
       ctx.arc(x, y, (ctx.lineWidth || currentSize) / 2, 0, Math.PI * 2);
       ctx.fillStyle = ctx.strokeStyle;
       ctx.fill();
+      didDrawInStroke = true;
     });
 
     canvas.addEventListener('pointermove', (e) => {
@@ -1504,28 +1814,42 @@
       }
 
       e.preventDefault();
-      const coords = getCanvasCoords(e);
-      const x = coords.x;
-      const y = coords.y;
-      const p = e.pressure || 0.5;
 
-      hasMoved = true;
-      const midX = (lastX + x) / 2;
-      const midY = (lastY + y) / 2;
+      // Zero-latency рендеринг через getCoalescedEvents для 120/240Hz стилусов
+      const events = (typeof e.getCoalescedEvents === 'function') ? e.getCoalescedEvents() : [e];
+      for (let i = 0; i < events.length; i++) {
+        const ev = events[i];
+        const coords = getCanvasCoords(ev);
+        const x = coords.x;
+        const y = coords.y;
+        const p = ev.pressure || 0.5;
 
-      applyToolStyles(p);
-      ctx.beginPath();
-      ctx.moveTo(lastMidX, lastMidY);
-      ctx.quadraticCurveTo(lastX, lastY, midX, midY);
-      ctx.stroke();
+        hasMoved = true;
+        didDrawInStroke = true;
+        const midX = (lastX + x) / 2;
+        const midY = (lastY + y) / 2;
 
-      lastMidX = midX;
-      lastMidY = midY;
-      lastX = x;
-      lastY = y;
+        applyToolStyles(p);
+        ctx.beginPath();
+        ctx.moveTo(lastMidX, lastMidY);
+        ctx.quadraticCurveTo(lastX, lastY, midX, midY);
+        ctx.stroke();
+
+        lastMidX = midX;
+        lastMidY = midY;
+        lastX = x;
+        lastY = y;
+      }
     });
 
     const finishStroke = (e) => {
+      if (e.pointerType === 'pen') {
+        if (penInactiveTimer) clearTimeout(penInactiveTimer);
+        penInactiveTimer = setTimeout(() => {
+          isPenActive = false;
+        }, 180);
+      }
+
       if (e.pointerType === 'touch') {
         activeTouches.delete(e.pointerId);
       }
@@ -1541,6 +1865,13 @@
         ctx.moveTo(lastMidX, lastMidY);
         ctx.lineTo(lastX, lastY);
         ctx.stroke();
+      }
+
+      if (didDrawInStroke && currentStrokeBeforeSnap) {
+        if (undoStack.length >= MAX_UNDO) undoStack.shift();
+        undoStack.push(currentStrokeBeforeSnap);
+        redoStack = [];
+        currentStrokeBeforeSnap = null;
       }
 
       try { canvas.releasePointerCapture(e.pointerId); } catch(err) {}
@@ -1600,13 +1931,27 @@
       });
     });
 
-    // Undo & Clear
+    // Undo & Redo & Clear
     document.getElementById('stylus-undo-btn')?.addEventListener('click', undo);
+    document.getElementById('stylus-redo-btn')?.addEventListener('click', redo);
     document.getElementById('stylus-clear-btn')?.addEventListener('click', () => {
       if (confirm('Очистить рукописные заметки для этого периода?')) {
         saveUndo();
         clearCanvasOnly();
         localStorage.removeItem(getPeriodKey());
+      }
+    });
+
+    // Горячие клавиши для отмены и повтора (Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z)
+    window.addEventListener('keydown', (e) => {
+      if (isDrawingMode) {
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
+          e.preventDefault();
+          undo();
+        } else if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z'))) {
+          e.preventDefault();
+          redo();
+        }
       }
     });
 

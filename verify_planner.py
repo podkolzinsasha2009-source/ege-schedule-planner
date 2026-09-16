@@ -192,10 +192,59 @@ def test_advanced_stylus_and_mobile_features():
     assert 'id="modal-reset-btn"' in html, "index.html must include modal reset button for mobile parity"
     print("✓ Markup & CSS deep tests verified: test/homework companion style, pan tool, mobile action parity.")
 
+def test_zero_latency_and_redesign():
+    # 1. Zero-latency and Stylus Gestures in app.js
+    app_js_path = os.path.join(DIR, "app.js")
+    with open(app_js_path, "r", encoding="utf-8") as f:
+        js = f.read()
+    assert "desynchronized: true" in js, "app.js missing hardware desynchronized 2D context"
+    assert "getCoalescedEvents" in js, "app.js missing coalesced events loop for 120/240Hz stylus"
+    assert "takeSnapshot" in js and "restoreSnapshot" in js, "app.js missing in-memory GPU snapshot undo/redo"
+    assert "touchGesture" in js, "app.js missing touchGesture tracking"
+    assert "isPenActive" in js, "app.js missing strict pen active palm rejection"
+    assert "showGestureToast" in js, "app.js missing gesture feedback toast"
+    assert "card-accordion" in js or "accordion-toggle" in js, "app.js missing companion clustering accordion"
+    assert "stylus-redo-btn" in js, "app.js missing redo button handler"
+    print("✓ app.js zero-latency canvas, multi-touch gestures, in-memory snapshots, and card clustering verified.")
+
+    # 2. Settings Dropdown & Header Search in index.html
+    html_path = os.path.join(DIR, "index.html")
+    with open(html_path, "r", encoding="utf-8") as f:
+        html = f.read()
+    assert 'id="settings-dropdown-wrapper"' in html, "index.html missing settings dropdown wrapper"
+    assert 'id="settings-dropdown-btn"' in html, "index.html missing settings dropdown button"
+    assert 'id="settings-dropdown-menu"' in html, "index.html missing settings dropdown menu"
+    assert 'header-search' in html, "index.html missing header search bar"
+    assert 'header-progress-track' in html, "index.html missing slim header progress track"
+    assert 'id="stylus-redo-btn"' in html, "index.html missing stylus redo button"
+    print("✓ index.html settings dropdown, upfront search, slim progress bar, and redo button verified.")
+
+    # 3. CSS for Redesign & Dropdown & Accordion in styles.css
+    css_path = os.path.join(DIR, "styles.css")
+    with open(css_path, "r", encoding="utf-8") as f:
+        css = f.read()
+    assert ".dropdown-menu" in css, "styles.css missing dropdown menu styles"
+    assert ".header-progress-track" in css, "styles.css missing slim header progress track styles"
+    assert ".card-accordion" in css, "styles.css missing accordion styles"
+    assert ".accordion-toggle" in css, "styles.css missing accordion toggle styles"
+    assert ".accordion-checklist" in css, "styles.css missing accordion checklist styles"
+    assert ".subject-pill" in css, "styles.css missing subject-pill styles"
+    assert ".stylus-toast" in css, "styles.css missing stylus toast styles"
+    print("✓ styles.css dropdown menu, slim progress bar, accordion checklists, subject pills, and toast verified.")
+
+    # 4. SW v4 verification
+    sw_path = os.path.join(DIR, "sw.js")
+    with open(sw_path, "r", encoding="utf-8") as f:
+        sw = f.read()
+    assert "himbiorus-pwa-v4" in sw, "sw.js missing v4 cache name"
+    print("✓ sw.js v4 cache version verified.")
+
 if __name__ == "__main__":
     test_files_exist()
     test_schedule_data()
     test_html_and_js_syntax()
     test_stylus_darkmode_mobile_features()
     test_advanced_stylus_and_mobile_features()
-    print("\n🎉 ALL VERIFICATION TESTS (DATA + ADVANCED STYLUS + DARK MODE + MOBILE + PWA) PASSED SUCCESSFULLY!")
+    test_zero_latency_and_redesign()
+    print("\n🎉 ALL VERIFICATION TESTS (DATA + ADVANCED STYLUS + DARK MODE + MOBILE + PWA + REDESIGN + GESTURES) PASSED SUCCESSFULLY!")
+
