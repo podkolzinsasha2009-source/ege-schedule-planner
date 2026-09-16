@@ -776,7 +776,9 @@ body {
 }
 
 /* Сопутствующие карточки (Тесты и Письменные ДЗ) — чуть прозрачнее и светлее для четкого отличия */
-.schedule-card.is-companion {
+.schedule-card.is-companion,
+.schedule-card.test,
+.schedule-card.homework {
   opacity: 0.84;
   border-style: dashed;
   border-width: 1.5px;
@@ -785,24 +787,32 @@ body {
   transition: opacity 0.2s ease, transform 0.15s ease, box-shadow 0.15s ease, filter 0.2s ease;
 }
 
-.schedule-card.is-companion:hover {
+.schedule-card.is-companion:hover,
+.schedule-card.test:hover,
+.schedule-card.homework:hover {
   opacity: 1;
   filter: saturate(1);
   box-shadow: var(--shadow-sm);
   transform: translateY(-1px);
 }
 
-.schedule-card.is-companion.bio {
+.schedule-card.is-companion.bio,
+.schedule-card.test.bio,
+.schedule-card.homework.bio {
   background-color: rgba(226, 242, 213, 0.58);
   border-color: rgba(162, 216, 133, 0.9);
 }
 
-.schedule-card.is-companion.chem {
+.schedule-card.is-companion.chem,
+.schedule-card.test.chem,
+.schedule-card.homework.chem {
   background-color: rgba(240, 232, 255, 0.58);
   border-color: rgba(197, 172, 245, 0.9);
 }
 
-.schedule-card.is-companion.rus {
+.schedule-card.is-companion.rus,
+.schedule-card.test.rus,
+.schedule-card.homework.rus {
   background-color: rgba(254, 222, 223, 0.58);
   border-color: rgba(246, 163, 168, 0.9);
 }
@@ -1272,7 +1282,7 @@ body {
 
 .tablet-options-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 20px;
 }
 
@@ -1516,6 +1526,14 @@ body {
   pointer-events: auto;
   cursor: crosshair;
   touch-action: none;
+}
+
+.stylus-canvas.pan-active {
+  cursor: grab;
+}
+
+.stylus-canvas.pan-active:active {
+  cursor: grabbing;
 }
 
 /* Плавающая панель инструментов GoodNotes */
@@ -1955,11 +1973,15 @@ body.dark-mode .schedule-card.general {
 }
 
 /* Сопутствующие карточки в темной теме (еще более легкие и прозрачные) */
-body.dark-mode .schedule-card.is-companion {
+body.dark-mode .schedule-card.is-companion,
+body.dark-mode .schedule-card.test,
+body.dark-mode .schedule-card.homework {
   opacity: 0.78;
 }
 
-body.dark-mode .schedule-card.is-companion:hover {
+body.dark-mode .schedule-card.is-companion:hover,
+body.dark-mode .schedule-card.test:hover,
+body.dark-mode .schedule-card.homework:hover {
   opacity: 1;
 }
 

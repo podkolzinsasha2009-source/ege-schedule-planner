@@ -1072,6 +1072,10 @@
     // Экспорт / Импорт JSON
     document.getElementById('export-btn')?.addEventListener('click', exportJson);
     document.getElementById('import-file-input')?.addEventListener('change', importJson);
+    document.getElementById('modal-export-btn')?.addEventListener('click', exportJson);
+    document.getElementById('modal-import-file-input')?.addEventListener('change', importJson);
+    document.getElementById('modal-print-btn')?.addEventListener('click', () => window.print());
+    document.getElementById('modal-reset-btn')?.addEventListener('click', resetToDefault);
 
     // Модальное окно для подключения планшета
     const tabletBtn = document.getElementById('tablet-btn');
@@ -1144,6 +1148,9 @@
   }
 
   function exportJson() {
+    if (window.GoodNotesStylus) {
+      window.GoodNotesStylus.saveDrawing();
+    }
     const drawings = window.GoodNotesStylus ? window.GoodNotesStylus.getDrawingsBackup() : {};
     const dataStr = JSON.stringify({
       periods: state.periods,
@@ -1211,14 +1218,23 @@
     const ctx = canvas.getContext('2d');
     let isDrawingMode = false;
     let isDrawing = false;
-    let currentTool = 'pen'; // 'pen' | 'highlighter' | 'eraser'
+    let isPanning = false;
+    let panStartY = 0;
+    let panStartX = 0;
+    let currentTool = 'pen'; // 'pen' | 'highlighter' | 'eraser' | 'pan'
     let currentColor = '#10b981';
     let currentSize = 3;
     let palmRejectionOnlyPen = true; // Защита от ладони: true = только Apple Pencil / S-Pen рисует!
-    let strokePoints = [];
+    let lastX = 0;
+    let lastY = 0;
+    let lastMidX = 0;
+    let lastMidY = 0;
+    let hasMoved = false;
+    let activeTouches = new Map();
     let undoStack = [];
     const MAX_UNDO = 25;
     let saveTimeout = null;
+    let resizeObserver = null;
 
     function getPeriodKey() {
       const p = state.periods[state.currentPeriodIndex];
@@ -1260,8 +1276,7 @@
       canvas.style.width = displayWidth + 'px';
       canvas.style.height = displayHeight + 'px';
 
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.scale(dpr, dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
       if (tempCanvas) {
         ctx.drawImage(tempCanvas, 0, 0, displayWidth, displayHeight);
@@ -1286,6 +1301,14 @@
       saveTimeout = setTimeout(saveDrawing, 300);
     }
 
+    function clearCanvasOnly() {
+      if (!canvas || !ctx) return;
+      const dpr = window.devicePixelRatio || 1;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
     function loadDrawing() {
       if (!canvas || !ctx) return;
       const key = getPeriodKey();
@@ -1301,16 +1324,6 @@
         };
         img.src = saved;
       }
-    }
-
-    function clearCanvasOnly() {
-      if (!canvas || !ctx) return;
-      ctx.save();
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.restore();
-      const dpr = window.devicePixelRatio || 1;
-      ctx.scale(dpr, dpr);
     }
 
     function saveUndo() {
@@ -1332,9 +1345,15 @@
       img.src = prev;
     }
 
+    function updateToolCursor() {
+      if (!canvas) return;
+      canvas.classList.toggle('pan-active', currentTool === 'pan');
+    }
+
     function setDrawingMode(active) {
       isDrawingMode = active;
       canvas.classList.toggle('drawing-active', active);
+      updateToolCursor();
       if (toolbar) toolbar.style.display = active ? 'block' : 'none';
       if (drawToggleBtn) drawToggleBtn.classList.toggle('active', active);
       if (mobDrawBtn) mobDrawBtn.classList.toggle('active', active);
@@ -1362,13 +1381,15 @@
         width = currentSize * (0.6 + 0.8 * pressure);
       }
 
+      const isDark = document.body.classList.contains('dark-mode');
+
       if (currentTool === 'pen') {
         ctx.globalCompositeOperation = 'source-over';
         ctx.strokeStyle = currentColor;
         ctx.lineWidth = width;
       } else if (currentTool === 'highlighter') {
-        ctx.globalCompositeOperation = 'multiply';
-        ctx.strokeStyle = currentColor.startsWith('rgba') ? currentColor : hexToRgba(currentColor, 0.45);
+        ctx.globalCompositeOperation = isDark ? 'screen' : 'multiply';
+        ctx.strokeStyle = currentColor.startsWith('rgba') ? currentColor : hexToRgba(currentColor, isDark ? 0.65 : 0.45);
         ctx.lineWidth = Math.max(width * 3.5, 18);
       } else if (currentTool === 'eraser') {
         ctx.globalCompositeOperation = 'destination-out';
@@ -1376,12 +1397,56 @@
       }
     }
 
+    function getCanvasCoords(e) {
+      const rect = canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      const scaleX = (canvas.width / dpr) / (rect.width || 1);
+      const scaleY = (canvas.height / dpr) / (rect.height || 1);
+      return {
+        x: (e.clientX - rect.left) * scaleX,
+        y: (e.clientY - rect.top) * scaleY
+      };
+    }
+
+    // Touch event listeners to explicitly prevent default when palm rests
+    canvas.addEventListener('touchstart', (e) => {
+      if (!isDrawingMode) return;
+      if (palmRejectionOnlyPen && e.touches.length < 2 && currentTool !== 'pan') {
+        e.preventDefault();
+      }
+    }, { passive: false });
+
+    canvas.addEventListener('touchmove', (e) => {
+      if (!isDrawingMode) return;
+      if (palmRejectionOnlyPen && e.touches.length < 2 && currentTool !== 'pan') {
+        e.preventDefault();
+      }
+    }, { passive: false });
+
     // Pointer Events на холсте
     canvas.addEventListener('pointerdown', (e) => {
       if (!isDrawingMode) return;
 
-      // Защита от ладони: если включена, касания пальцев и руки полностью игнорируются!
+      if (e.pointerType === 'touch') {
+        activeTouches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (activeTouches.size >= 2) {
+          isDrawing = false;
+          e.preventDefault();
+          return;
+        }
+      }
+
+      if (currentTool === 'pan') {
+        panStartY = e.clientY;
+        panStartX = e.clientX;
+        isPanning = true;
+        e.preventDefault();
+        return;
+      }
+
+      // Защита от ладони: касания руки и пальцев игнорируются и не вызывают смещений
       if (palmRejectionOnlyPen && e.pointerType !== 'pen') {
+        e.preventDefault();
         return;
       }
 
@@ -1390,13 +1455,17 @@
 
       saveUndo();
       isDrawing = true;
+      hasMoved = false;
 
-      const rect = canvas.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
+      const coords = getCanvasCoords(e);
+      const x = coords.x;
+      const y = coords.y;
       const p = e.pressure || 0.5;
 
-      strokePoints = [{ x, y, pressure: p }];
+      lastX = x;
+      lastY = y;
+      lastMidX = x;
+      lastMidY = y;
 
       applyToolStyles(p);
       ctx.beginPath();
@@ -1406,35 +1475,74 @@
     });
 
     canvas.addEventListener('pointermove', (e) => {
+      if (e.pointerType === 'touch' && activeTouches.has(e.pointerId)) {
+        const prev = activeTouches.get(e.pointerId);
+        activeTouches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (activeTouches.size >= 2) {
+          const dy = prev.y - e.clientY;
+          const dx = prev.x - e.clientX;
+          window.scrollBy({ top: dy, left: dx, behavior: 'auto' });
+          e.preventDefault();
+          return;
+        }
+      }
+
+      if (isPanning && currentTool === 'pan') {
+        const dy = e.clientY - panStartY;
+        const dx = e.clientX - panStartX;
+        panStartY = e.clientY;
+        panStartX = e.clientX;
+        window.scrollBy({ top: -dy, left: -dx, behavior: 'auto' });
+        e.preventDefault();
+        return;
+      }
+
       if (!isDrawing || !isDrawingMode) return;
-      if (palmRejectionOnlyPen && e.pointerType !== 'pen') return;
+      if (palmRejectionOnlyPen && e.pointerType !== 'pen') {
+        e.preventDefault();
+        return;
+      }
 
       e.preventDefault();
-      const rect = canvas.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
+      const coords = getCanvasCoords(e);
+      const x = coords.x;
+      const y = coords.y;
       const p = e.pressure || 0.5;
 
-      strokePoints.push({ x, y, pressure: p });
+      hasMoved = true;
+      const midX = (lastX + x) / 2;
+      const midY = (lastY + y) / 2;
 
-      if (strokePoints.length >= 2) {
-        const p1 = strokePoints[strokePoints.length - 2];
-        const p2 = strokePoints[strokePoints.length - 1];
-        const midX = (p1.x + p2.x) / 2;
-        const midY = (p1.y + p2.y) / 2;
+      applyToolStyles(p);
+      ctx.beginPath();
+      ctx.moveTo(lastMidX, lastMidY);
+      ctx.quadraticCurveTo(lastX, lastY, midX, midY);
+      ctx.stroke();
 
-        applyToolStyles(p2.pressure);
-        ctx.beginPath();
-        ctx.moveTo(p1.x, p1.y);
-        ctx.lineTo(midX, midY);
-        ctx.stroke();
-      }
+      lastMidX = midX;
+      lastMidY = midY;
+      lastX = x;
+      lastY = y;
     });
 
     const finishStroke = (e) => {
+      if (e.pointerType === 'touch') {
+        activeTouches.delete(e.pointerId);
+      }
+      if (isPanning) {
+        isPanning = false;
+      }
       if (!isDrawing) return;
       isDrawing = false;
-      strokePoints = [];
+
+      if (hasMoved) {
+        applyToolStyles(e.pressure || 0.5);
+        ctx.beginPath();
+        ctx.moveTo(lastMidX, lastMidY);
+        ctx.lineTo(lastX, lastY);
+        ctx.stroke();
+      }
+
       try { canvas.releasePointerCapture(e.pointerId); } catch(err) {}
       debouncedSaveDrawing();
     };
@@ -1447,12 +1555,13 @@
     mobDrawBtn?.addEventListener('click', toggleDrawingMode);
     document.getElementById('stylus-close-btn')?.addEventListener('click', () => setDrawingMode(false));
 
-    // Выбор инструмента (Ручка, Маркер, Ластик)
+    // Выбор инструмента (Ручка, Маркер, Ластик, Скролл)
     document.querySelectorAll('.tools-selection .stylus-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('.tools-selection .stylus-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         currentTool = btn.getAttribute('data-tool') || 'pen';
+        updateToolCursor();
       });
     });
 
@@ -1501,10 +1610,17 @@
       }
     });
 
-    // Слежение за изменением размера экрана
+    // Слежение за изменением размера экрана и разметки с ResizeObserver
     window.addEventListener('resize', () => {
       resizeCanvas(true);
     });
+
+    if (window.ResizeObserver && wrapper) {
+      resizeObserver = new ResizeObserver(() => {
+        resizeCanvas(true);
+      });
+      resizeObserver.observe(wrapper);
+    }
 
     // Экспорт API стилуса для вызова при переключении страниц
     stylusModule = {

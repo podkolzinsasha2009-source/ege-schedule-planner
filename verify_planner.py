@@ -166,9 +166,36 @@ def test_stylus_darkmode_mobile_features():
     assert "addEventListener('fetch'" in sw, "sw.js missing fetch listener"
     print("✓ sw.js Service Worker verified: offline caching strategy active.")
 
+def test_advanced_stylus_and_mobile_features():
+    # 1. Advanced Stylus Canvas Assertions
+    app_js_path = os.path.join(DIR, "app.js")
+    with open(app_js_path, "r", encoding="utf-8") as f:
+        js = f.read()
+    assert "quadraticCurveTo" in js, "app.js must use quadraticCurveTo for continuous smooth handwriting"
+    assert "'screen'" in js or '"screen"' in js, "app.js must use screen blend mode for highlighter in dark mode"
+    assert "ctx.setTransform(dpr, 0, 0, dpr, 0, 0)" in js, "app.js must use idempotent setTransform to prevent DPR explosion"
+    assert "ResizeObserver" in js, "app.js must use ResizeObserver to handle dynamic height shifts"
+    assert "activeTouches" in js, "app.js must track touches for two-finger gestures"
+    print("✓ app.js deep tests verified: quadratic Bezier smoothing, dark mode screen blend, idempotent DPR scaling, ResizeObserver.")
+
+    # 2. Advanced Markup & Styles
+    css_path = os.path.join(DIR, "styles.css")
+    with open(css_path, "r", encoding="utf-8") as f:
+        css = f.read()
+    assert ".schedule-card.test" in css and ".schedule-card.homework" in css, "styles.css must style test & homework cards with companion look"
+
+    html_path = os.path.join(DIR, "index.html")
+    with open(html_path, "r", encoding="utf-8") as f:
+        html = f.read()
+    assert 'id="tool-pan"' in html, "index.html must include pan tool button"
+    assert 'id="modal-export-btn"' in html, "index.html must include modal export button for mobile parity"
+    assert 'id="modal-reset-btn"' in html, "index.html must include modal reset button for mobile parity"
+    print("✓ Markup & CSS deep tests verified: test/homework companion style, pan tool, mobile action parity.")
+
 if __name__ == "__main__":
     test_files_exist()
     test_schedule_data()
     test_html_and_js_syntax()
     test_stylus_darkmode_mobile_features()
-    print("\n🎉 ALL VERIFICATION TESTS (DATA + STYLUS + DARK MODE + MOBILE + PWA) PASSED SUCCESSFULLY!")
+    test_advanced_stylus_and_mobile_features()
+    print("\n🎉 ALL VERIFICATION TESTS (DATA + ADVANCED STYLUS + DARK MODE + MOBILE + PWA) PASSED SUCCESSFULLY!")

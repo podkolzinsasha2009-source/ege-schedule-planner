@@ -171,6 +171,9 @@
         <button id="tool-eraser" class="stylus-btn" data-tool="eraser" title="Ластик">
           🧹 <span class="btn-text">Ластик</span>
         </button>
+        <button id="tool-pan" class="stylus-btn" data-tool="pan" title="Скролл / Перемещение по расписанию">
+          ✋ <span class="btn-text">Скролл</span>
+        </button>
       </div>
 
       <div class="toolbar-divider"></div>
@@ -443,6 +446,26 @@
 
             <div class="word-tips">
               💡 На планшете файл можно открыть в <strong>Microsoft Word</strong>, <strong>Apple Pages</strong> или импортировать в <strong>GoodNotes / Notability</strong> и рисовать пометки Apple Pencil / стилусом.
+            </div>
+          </div>
+
+          <!-- Вариант 3: Резервные копии и управление данными -->
+          <div class="tablet-option-card">
+            <div class="option-header">
+              <span class="option-badge secondary">Управление данными</span>
+              <h4>3. Резервные копии и сброс</h4>
+            </div>
+            <p class="option-desc">
+              Сохраняйте резервную копию расписания и рукописных заметок на телефон/планшет, загружайте сохраненный файл или печатайте расписание.
+            </p>
+            <div class="tablet-actions-list" style="display: flex; flex-direction: column; gap: 8px; margin-top: 12px;">
+              <button id="modal-export-btn" class="btn btn-outline btn-block">📥 Экспорт расписания и заметок (JSON)</button>
+              <label class="btn btn-outline btn-block" style="cursor: pointer; text-align: center;">
+                📤 Импорт расписания и заметок
+                <input type="file" id="modal-import-file-input" accept=".json" style="display: none;">
+              </label>
+              <button id="modal-print-btn" class="btn btn-outline btn-block">🖨️ Печать / Сохранить в PDF</button>
+              <button id="modal-reset-btn" class="btn btn-danger-outline btn-block">↺ Сбросить к исходному расписанию</button>
             </div>
           </div>
 
