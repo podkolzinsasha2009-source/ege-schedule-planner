@@ -197,7 +197,7 @@
     return `
       <div class="card ${it.subject || 'general'} cat-${it.category || 'theory'}${it.isCompanion ? ' is-companion' : ''}${it.completed ? ' is-done' : ''}${extraClass ? ' ' + extraClass : ''}" data-id="${escapeHtml(it.id)}">
         <div class="card-top">
-          <span class="pill subject">${subject.label}</span>
+          <span class="pill subject" title="${subject.label}">${subject.short}</span>
           <span class="pill type">${escapeHtml(typeLabel)}</span>
           ${icon ? `<span class="pill icon" title="${icon.label}">${icon.sign}</span>` : ''}
           ${it.time ? `<span class="card-time">${escapeHtml(it.time)}</span>` : ''}

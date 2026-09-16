@@ -441,7 +441,7 @@ main { position: relative; }
   --c: var(--general);
   --fill: 30%;
   --edge: 55%;
-  position: relative; padding: 8px 9px 9px 13px; border-radius: 11px;
+  position: relative; padding: 8px 7px 9px 12px; border-radius: 11px;
   border: 1px solid color-mix(in srgb, var(--c) var(--edge), transparent);
   background: color-mix(in srgb, var(--c) var(--fill), var(--surface));
   cursor: grab; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
@@ -456,20 +456,29 @@ main { position: relative; }
 .card.chem { --c: var(--chem); }
 .card.rus { --c: var(--rus); }
 
-.card-top { display: flex; align-items: center; gap: 4px; min-height: 20px; }
+.card-top {
+  display: flex; align-items: center; gap: 3px; min-height: 20px;
+  padding-right: 24px; /* место под галочку — она закреплена в углу и не уезжает */
+  overflow: hidden;
+}
 .pill {
-  display: inline-flex; align-items: center; height: 17px; padding: 0 6px; border-radius: 6px;
-  font-size: 9px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; white-space: nowrap;
+  display: inline-flex; align-items: center; height: 17px; padding: 0 5px; border-radius: 6px;
+  font-size: 9px; font-weight: 800; letter-spacing: 0.02em; text-transform: uppercase; white-space: nowrap;
 }
 .pill.subject { color: #0b0b0d; background: var(--c); }
-.pill.type { color: color-mix(in srgb, var(--text) 85%, transparent); background: rgba(0, 0, 0, 0.28); }
+.pill { flex: none; }
+/* Если строке не хватает места, сжимается только тип занятия — с многоточием */
+.pill.type {
+  flex: 0 1 auto; min-width: 0; display: block; line-height: 17px; overflow: hidden; text-overflow: ellipsis;
+  color: color-mix(in srgb, var(--text) 85%, transparent); background: rgba(0, 0, 0, 0.28);
+}
 :root[data-theme="light"] .pill.type { background: rgba(255, 255, 255, 0.65); }
 .pill.icon { min-width: 17px; justify-content: center; padding: 0; background: var(--accent); color: #fff; font-size: 11px; }
-.card-time { margin-left: 2px; font-size: 10px; font-weight: 800; color: color-mix(in srgb, var(--text) 80%, transparent); }
+.card-time { flex: none; margin-left: 1px; font-size: 10px; font-weight: 800; color: color-mix(in srgb, var(--text) 80%, transparent); }
 
 .card-check {
-  margin-left: auto; flex: none; width: 20px; height: 20px; border-radius: 6px;
-  border: 1.5px solid color-mix(in srgb, var(--text) 45%, transparent); background: rgba(0, 0, 0, 0.18); position: relative;
+  position: absolute; top: 7px; right: 6px; width: 20px; height: 20px; border-radius: 6px;
+  border: 1.5px solid color-mix(in srgb, var(--text) 45%, transparent); background: rgba(0, 0, 0, 0.18);
   transition: background 0.2s, border-color 0.2s, transform 0.2s var(--ease);
 }
 :root[data-theme="light"] .card-check { background: rgba(255, 255, 255, 0.7); }
