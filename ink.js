@@ -9,14 +9,19 @@
 (function () {
   'use strict';
 
-  const MAX_CANVAS_PIXELS = 12e6;
+  const MAX_CANVAS_PIXELS = 8e6;
+  const VIEW_MARGIN = 240; // запас вокруг видимой области, чтобы при прокрутке не было пустых краёв
   const LIVE_INTERVAL = 60;
   const STALE_LIVE_MS = 6000;
 
   let HB, Store;
   let board, ink, inkCtx, overlay, overlayCtx;
   let layout = { width: 1480, height: 0, zoom: 1 };
-  let resolution = 1;
+  // Где стоят холсты внутри #board-sizer (экранные px) и с каким разрешением
+  let view = { left: 0, top: 0, w: 0, h: 0, scale: 1, zoom: 0 };
+  let placeRaf = null;
+  let placeForce = false;
+  let placeAfterStroke = false;
 
   const settings = {
     tool: 'pen',          // pen | hl | eraser | stroke-eraser
@@ -56,11 +61,26 @@
   }
 
   function pointsOf(id, stroke) {
+    return parsed(id, stroke).pts;
+  }
+
+  // Точки штриха и его рамка (для пропуска штрихов за краем холста)
+  function parsed(id, stroke) {
     const cached = parsedCache.get(id);
-    if (cached && cached.p === stroke.p) return cached.pts;
+    if (cached && cached.p === stroke.p) return cached;
     const pts = decodePoints(stroke.p);
-    parsedCache.set(id, { p: stroke.p, pts });
-    return pts;
+    const pad = widthFor(stroke, 1) / 2 + 2;
+    const box = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
+    pts.forEach(pt => {
+      if (pt[0] < box.x0) box.x0 = pt[0];
+      if (pt[1] < box.y0) box.y0 = pt[1];
+      if (pt[0] > box.x1) box.x1 = pt[0];
+      if (pt[1] > box.y1) box.y1 = pt[1];
+    });
+    box.x0 -= pad; box.y0 -= pad; box.x1 += pad; box.y1 += pad;
+    const entry = { p: stroke.p, pts, box };
+    parsedCache.set(id, entry);
+    return entry;
   }
 
   // ------------------------------------------------------------------ отрисовка штриха
@@ -149,30 +169,74 @@
     return Object.keys(strokes).sort((a, b) => ((strokes[a].ts || 0) - (strokes[b].ts || 0)) || (a < b ? -1 : 1));
   }
 
-  function resizeCanvases() {
-    const w = layout.width, h = Math.max(layout.height, 1);
+  // Холсты покрывают только видимую часть доски (плюс запас) и не масштабируются через CSS.
+  // Раньше холст был размером со всю доску внутри увеличенной доски: при сильном
+  // приближении браузер на каждое движение стилуса перерисовывал огромную текстуру.
+  function placeCanvases(force) {
+    if (current) { placeAfterStroke = true; return; }
+    const sizer = board.parentElement;
+    const viewport = sizer.parentElement;
+    const sr = sizer.getBoundingClientRect();
+    const vr = viewport.getBoundingClientRect();
+    const z = layout.zoom;
+    const fullW = layout.width * z;
+    const fullH = Math.max(layout.height, 1) * z;
+
+    const visL = Math.max(0, Math.max(vr.left, 0) - sr.left);
+    const visT = Math.max(0, Math.max(vr.top, 0) - sr.top);
+    const visR = Math.min(fullW, Math.min(vr.right, window.innerWidth) - sr.left);
+    const visB = Math.min(fullH, Math.min(vr.bottom, window.innerHeight) - sr.top);
+    if (visR <= visL || visB <= visT) return; // доска не на экране
+
+    const covered = view.w > 0 && view.zoom === z &&
+      visL >= view.left && visT >= view.top && visR <= view.left + view.w && visB <= view.top + view.h;
+    if (covered && !force) return;
+
+    const left = Math.max(0, Math.floor(visL - VIEW_MARGIN));
+    const top = Math.max(0, Math.floor(visT - VIEW_MARGIN));
+    const w = Math.max(1, Math.min(fullW, Math.ceil(visR + VIEW_MARGIN)) - left);
+    const h = Math.max(1, Math.min(fullH, Math.ceil(visB + VIEW_MARGIN)) - top);
     const dpr = window.devicePixelRatio || 1;
-    const cap = Math.sqrt(MAX_CANVAS_PIXELS / (w * h));
-    const r = Math.max(0.5, Math.min(dpr * layout.zoom, cap, 3));
-    const pw = Math.round(w * r), ph = Math.round(h * r);
-    let changed = false;
+    const scale = Math.max(0.5, Math.min(dpr, Math.sqrt(MAX_CANVAS_PIXELS / (w * h))));
+    const pw = Math.round(w * scale), ph = Math.round(h * scale);
+
     [ink, overlay].forEach(c => {
+      c.style.left = left + 'px';
+      c.style.top = top + 'px';
       c.style.width = w + 'px';
       c.style.height = h + 'px';
-      if (c.width !== pw || c.height !== ph) {
-        c.width = pw;
-        c.height = ph;
-        changed = true;
-      }
+      if (c.width !== pw) c.width = pw;
+      if (c.height !== ph) c.height = ph;
     });
-    resolution = r;
-    if (changed) {
-      inkCtx.setTransform(r, 0, 0, r, 0, 0);
-      overlayCtx.setTransform(r, 0, 0, r, 0, 0);
-      redrawAll();
-      overlayDirty = false;
-      requestOverlay();
-    }
+    view = { left, top, w, h, scale, zoom: z };
+    applyTransform(inkCtx);
+    applyTransform(overlayCtx);
+    redrawAll();
+    overlayDirty = false;
+    requestOverlay();
+  }
+
+  // Координаты доски → пиксели холста
+  function applyTransform(ctx) {
+    const k = view.scale * view.zoom;
+    ctx.setTransform(k, 0, 0, k, -view.left * view.scale, -view.top * view.scale);
+  }
+
+  function schedulePlace(force) {
+    if (force) placeForce = true;
+    if (placeRaf) return;
+    placeRaf = requestAnimationFrame(() => {
+      placeRaf = null;
+      const f = placeForce;
+      placeForce = false;
+      placeCanvases(f);
+    });
+  }
+
+  // Видимая часть доски в её координатах — чтобы не рисовать штрихи за краем холста
+  function visibleBoardRect() {
+    const k = view.zoom || 1;
+    return { x0: view.left / k, y0: view.top / k, x1: (view.left + view.w) / k, y1: (view.top + view.h) / k };
   }
 
   function clearCtx(ctx, canvas) {
@@ -186,9 +250,13 @@
     clearCtx(inkCtx, ink);
     const strokes = periodStrokes();
     rendered = new Set();
+    const vis = visibleBoardRect();
     sortedIds(strokes).forEach(id => {
-      drawStroke(inkCtx, strokes[id], pointsOf(id, strokes[id]));
+      const entry = parsed(id, strokes[id]);
       rendered.add(id);
+      const box = entry.box;
+      if (box.x1 < vis.x0 || box.x0 > vis.x1 || box.y1 < vis.y0 || box.y0 > vis.y1) return;
+      drawStroke(inkCtx, strokes[id], entry.pts);
     });
     // Недописанная линия ручки живёт прямо на этом холсте — возвращаем её
     if (current && current.stroke.t === 'pen') drawStroke(inkCtx, current.stroke, current.pts);
@@ -435,6 +503,10 @@
     const done = current;
     current = null;
     if (!done) return;
+    if (placeAfterStroke) {
+      placeAfterStroke = false;
+      schedulePlace(true);
+    }
 
     if (done.stroke.t === 'stroke-eraser') {
       if (Object.keys(done.erased).length) {
@@ -649,13 +721,15 @@
 
     document.addEventListener('hb:layout', (e) => {
       const d = e.detail;
-      const zoomChanged = Math.abs(d.zoom - layout.zoom) > 0.001;
+      const changed = Math.abs(d.zoom - layout.zoom) > 0.0001 || d.height !== layout.height;
       layout = d;
-      clearTimeout(setup.resizeTimer);
-      // При щипке меняем разрешение с задержкой, чтобы не перерисовывать на каждом кадре
-      if (zoomChanged) setup.resizeTimer = setTimeout(resizeCanvases, 160);
-      else resizeCanvases();
+      schedulePlace(changed);
     });
+    window.addEventListener('scroll', () => schedulePlace(false), { passive: true });
+    board.parentElement.parentElement.addEventListener('scroll', () => schedulePlace(false), { passive: true });
+    window.addEventListener('resize', () => schedulePlace(true));
+    // Запасной таймер: кадры анимации не приходят в фоновой вкладке
+    setInterval(() => { if (!current) placeCanvases(false); }, 1500);
 
     document.addEventListener('hb:period', () => {
       undoStack.length = 0;
@@ -691,7 +765,7 @@
     }, 2000);
 
     setupToolbar();
-    resizeCanvases();
+    placeCanvases(true);
   }
 
   if (window.HB) setup();
