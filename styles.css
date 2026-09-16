@@ -1834,6 +1834,13 @@ body {
   width: 100%;
 }
 
+.calendar-wrapper.drawing-mode {
+  touch-action: none !important;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
 .stylus-canvas {
   position: absolute;
   top: 0;
@@ -1841,7 +1848,7 @@ body {
   width: 100%;
   height: 100%;
   pointer-events: none;
-  touch-action: none;
+  touch-action: none !important;
   z-index: 40;
   border-radius: var(--radius-md);
   transition: opacity 0.2s ease;
@@ -1850,7 +1857,7 @@ body {
 .stylus-canvas.drawing-active {
   pointer-events: auto;
   cursor: crosshair;
-  touch-action: none;
+  touch-action: none !important;
 }
 
 .stylus-canvas.pan-active {

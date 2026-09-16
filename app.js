@@ -304,27 +304,11 @@
         dropzone.setAttribute('data-date', dateKey);
         setupDropzoneEvents(dropzone, dateKey, false);
 
-        // Фильтрация и кластеризация связанных активностей (урок + сопутствующий тест + ДЗ)
+        // Отображение активностей: каждый урок, сопутствующий тест и домашка рендерятся как отдельный независимый блок
         const visibleItems = dayData.items.filter(item => isItemVisible(item));
-        const parentIds = new Set(visibleItems.filter(it => !it.isCompanion).map(it => it.id));
-        const companionsMap = new Map();
-        const primaryItems = [];
-
-        visibleItems.forEach(item => {
-          if (item.isCompanion && item.parentId && parentIds.has(item.parentId)) {
-            if (!companionsMap.has(item.parentId)) {
-              companionsMap.set(item.parentId, []);
-            }
-            companionsMap.get(item.parentId).push(item);
-          } else {
-            primaryItems.push(item);
-          }
-        });
-
-        primaryItems.forEach((item) => {
+        visibleItems.forEach((item) => {
           const realIndex = dayData.items.indexOf(item);
-          const attachedCompanions = companionsMap.get(item.id) || [];
-          const card = createCardElement(item, dateKey, realIndex, false, attachedCompanions);
+          const card = createCardElement(item, dateKey, realIndex, false);
           dropzone.appendChild(card);
         });
 
@@ -985,26 +969,10 @@
       return;
     }
 
-    // Кластеризация связанных блоков внутри бэклога
-    const parentIds = new Set(state.backlog.filter(it => !it.isCompanion).map(it => it.id));
-    const companionsMap = new Map();
-    const primaryItems = [];
-
-    state.backlog.forEach(item => {
-      if (item.isCompanion && item.parentId && parentIds.has(item.parentId)) {
-        if (!companionsMap.has(item.parentId)) {
-          companionsMap.set(item.parentId, []);
-        }
-        companionsMap.get(item.parentId).push(item);
-      } else {
-        primaryItems.push(item);
-      }
-    });
-
-    primaryItems.forEach((item) => {
+    // Отображаем каждую задачу (включая ДЗ и тесты) как отдельный независимый блок
+    state.backlog.forEach((item) => {
       const realIndex = state.backlog.indexOf(item);
-      const attachedCompanions = companionsMap.get(item.id) || [];
-      const card = createCardElement(item, null, realIndex, true, attachedCompanions);
+      const card = createCardElement(item, null, realIndex, true);
       dropzone.appendChild(card);
     });
   }
@@ -1619,20 +1587,35 @@
       }
     }
 
-    function saveDrawing() {
-      if (!canvas) return;
-      try {
-        const key = getPeriodKey();
-        const dataUrl = canvas.toDataURL('image/png');
-        localStorage.setItem(key, dataUrl);
-      } catch (e) {
-        console.warn('Не удалось сохранить рисунок стилуса:', e);
+    function saveDrawing(immediate = false) {
+      if (!canvas || isDrawing) return;
+      const doSave = () => {
+        if (isDrawing) return;
+        try {
+          const key = getPeriodKey();
+          const dataUrl = canvas.toDataURL('image/png');
+          localStorage.setItem(key, dataUrl);
+        } catch (e) {
+          console.warn('Не удалось сохранить рисунок стилуса:', e);
+        }
+      };
+
+      if (immediate) {
+        doSave();
+      } else if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+        window.requestIdleCallback(doSave, { timeout: 3000 });
+      } else {
+        setTimeout(doSave, 50);
       }
     }
 
     function debouncedSaveDrawing() {
       if (saveTimeout) clearTimeout(saveTimeout);
-      saveTimeout = setTimeout(saveDrawing, 400);
+      saveTimeout = setTimeout(() => {
+        if (!isDrawing) {
+          saveDrawing(false);
+        }
+      }, 2000);
     }
 
     function clearCanvasOnly() {
@@ -1725,6 +1708,9 @@
     function setDrawingMode(active) {
       isDrawingMode = active;
       canvas.classList.toggle('drawing-active', active);
+      wrapper.classList.toggle('drawing-mode', active);
+      canvas.style.touchAction = active ? 'none' : '';
+      wrapper.style.touchAction = active ? 'none' : '';
       updateToolCursor();
       if (toolbar) toolbar.style.display = active ? 'block' : 'none';
       if (drawToggleBtn) drawToggleBtn.classList.toggle('active', active);
@@ -1732,11 +1718,12 @@
 
       if (active) {
         resizeCanvas(true);
+        updateCachedCoords();
         if (toolbar) {
           toolbar.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
       } else {
-        saveDrawing();
+        saveDrawing(true);
       }
     }
 
@@ -1769,16 +1756,28 @@
       }
     }
 
-    function getCanvasCoords(e) {
-      const rect = canvas.getBoundingClientRect();
+    let cachedRect = null;
+    let cachedScaleX = 1;
+    let cachedScaleY = 1;
+
+    function updateCachedCoords() {
+      if (!canvas) return;
+      cachedRect = canvas.getBoundingClientRect();
       const dpr = window.devicePixelRatio || 1;
-      const scaleX = (canvas.width / dpr) / (rect.width || 1);
-      const scaleY = (canvas.height / dpr) / (rect.height || 1);
+      cachedScaleX = (canvas.width / dpr) / (cachedRect.width || 1);
+      cachedScaleY = (canvas.height / dpr) / (cachedRect.height || 1);
+    }
+
+    function getCanvasCoords(e) {
+      if (!cachedRect) updateCachedCoords();
       return {
-        x: (e.clientX - rect.left) * scaleX,
-        y: (e.clientY - rect.top) * scaleY
+        x: (e.clientX - cachedRect.left) * cachedScaleX,
+        y: (e.clientY - cachedRect.top) * cachedScaleY
       };
     }
+
+    window.addEventListener('scroll', () => { cachedRect = null; }, { passive: true });
+    window.addEventListener('resize', () => { cachedRect = null; }, { passive: true });
 
     // Touch event listeners для Palm Rejection и мультитач-жестов GoodNotes
     const resetTouchGesture = () => {
@@ -1867,6 +1866,7 @@
     // Pointer Events на холсте с аппаратной десинхронизацией
     canvas.addEventListener('pointerdown', (e) => {
       if (!isDrawingMode) return;
+      updateCachedCoords();
 
       if (e.pointerType === 'pen') {
         isPenActive = true;
@@ -2029,7 +2029,7 @@
       }
 
       if (didDrawInStroke && currentStrokePoints.length > 0 && window.SyncEngine) {
-        window.SyncEngine.broadcastStroke({
+        const strokePayload = {
           periodIndex: state.currentPeriodIndex,
           stroke: {
             tool: currentTool,
@@ -2037,7 +2037,12 @@
             size: currentSize,
             points: currentStrokePoints
           }
-        });
+        };
+        setTimeout(() => {
+          if (window.SyncEngine) {
+            window.SyncEngine.broadcastStroke(strokePayload);
+          }
+        }, 0);
       }
       currentStrokePoints = [];
 
@@ -2247,11 +2252,18 @@
           offCtx.lineTo(lx, ly);
           offCtx.stroke();
         }
-        try {
-          localStorage.setItem(key, off.toDataURL('image/png'));
-        } catch (e) {}
-        off.width = 0;
-        off.height = 0;
+        const commitSave = () => {
+          try {
+            localStorage.setItem(key, off.toDataURL('image/png'));
+          } catch (e) {}
+          off.width = 0;
+          off.height = 0;
+        };
+        if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+          window.requestIdleCallback(commitSave, { timeout: 3000 });
+        } else {
+          setTimeout(commitSave, 50);
+        }
       };
 
       if (saved) {

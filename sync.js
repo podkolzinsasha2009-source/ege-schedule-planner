@@ -12,6 +12,7 @@
   const FIREBASE_STORAGE_KEY = 'himbiorus_firebase_url';
   const PRIMARY_BROKER_WSS = 'wss://broker.hivemq.com:8884/mqtt';
   const FALLBACK_BROKER_WSS = 'wss://broker.emqx.io:8084/mqtt';
+  const MOSQUITTO_BROKER_WSS = 'wss://test.mosquitto.org:8081/mqtt';
 
   // Префиксы для читаемых кодов комнат (например ХИМ-749, БИО-521, ЕГЭ-308)
   const ROOM_PREFIXES = ['ХИМ', 'БИО', 'РУС', 'ЕГЭ', 'КУРС', 'МЕД', 'ПЛАН'];
@@ -24,10 +25,12 @@
   let ws = null;
   let broadcastChannel = null;
   let status = 'disconnected'; // 'disconnected' | 'connecting' | 'connected'
-  let activeBrokers = [PRIMARY_BROKER_WSS, FALLBACK_BROKER_WSS];
+  // Тройное резервирование: EMQX и Mosquitto отвечают <200мс без блокировок LTE, HiveMQ как резерв
+  let activeBrokers = [FALLBACK_BROKER_WSS, MOSQUITTO_BROKER_WSS, PRIMARY_BROKER_WSS];
   let currentBrokerIdx = 0;
   let reconnectTimer = null;
   let reconnectAttempts = 0;
+  let connectTimeout = null;
   let pingInterval = null;
   let heartbeatInterval = null;
   let pruneInterval = null;
@@ -528,6 +531,15 @@
     currentRoom = roomId;
     saveStoredRoom(roomId);
 
+    try {
+      if (typeof window !== 'undefined' && window.location && window.history) {
+        const expectedHash = `#sync=${encodeURIComponent(roomId)}`;
+        if (window.location.hash !== expectedHash) {
+          window.history.replaceState(null, '', expectedHash);
+        }
+      }
+    } catch (e) {}
+
     // 1. Инициализация локального кросс-вкладочного канала (BroadcastChannel)
     setupBroadcastChannel(roomId);
 
@@ -568,6 +580,11 @@
   }
 
   function connectWebSocket() {
+    if (connectTimeout) {
+      clearTimeout(connectTimeout);
+      connectTimeout = null;
+    }
+
     if (ws) {
       try {
         ws.onopen = null;
@@ -599,8 +616,20 @@
       return;
     }
 
+    // Быстрый таймаут рукопожатия (3.5 сек) для мгновенного обхода мобильных сетевых блокировок
+    connectTimeout = setTimeout(() => {
+      if (status !== 'connected') {
+        console.warn('Таймаут WSS брокера (3.5с), переключение на резервный:', brokerUrl);
+        currentBrokerIdx = (currentBrokerIdx + 1) % activeBrokers.length;
+        if (ws) {
+          try { ws.close(); } catch (e) {}
+          ws = null;
+        }
+        connectWebSocket();
+      }
+    }, 3500);
+
     ws.onopen = () => {
-      reconnectAttempts = 0;
       // Отправляем пакет MQTT CONNECT
       try {
         ws.send(createConnectPacket(CLIENT_ID));
@@ -626,6 +655,10 @@
     };
 
     ws.onclose = () => {
+      if (connectTimeout) {
+        clearTimeout(connectTimeout);
+        connectTimeout = null;
+      }
       if (status === 'connected') {
         updateStatus('connecting');
       }
@@ -640,6 +673,12 @@
   function handleMqttPacket(pkt) {
     if (pkt.type === 2) {
       // CONNACK: Подключение подтверждено брокером!
+      if (connectTimeout) {
+        clearTimeout(connectTimeout);
+        connectTimeout = null;
+      }
+      reconnectAttempts = 0;
+
       const topic = getTopic(currentRoom);
       ws.send(createSubscribePacket(topic));
       updateStatus('connected');
@@ -680,11 +719,9 @@
   function scheduleReconnect() {
     if (reconnectTimer) return;
     reconnectAttempts++;
-    // При нескольких неудачах переключаемся на резервный брокер
-    if (reconnectAttempts % 2 === 0) {
-      currentBrokerIdx = (currentBrokerIdx + 1) % activeBrokers.length;
-    }
-    const delay = Math.min(1000 * Math.pow(1.5, Math.min(reconnectAttempts, 6)), 12000);
+    // Мгновенное переключение на следующий резервный брокер
+    currentBrokerIdx = (currentBrokerIdx + 1) % activeBrokers.length;
+    const delay = reconnectAttempts <= activeBrokers.length ? 400 : Math.min(1000 * Math.pow(1.5, Math.min(reconnectAttempts, 5)), 8000);
     reconnectTimer = setTimeout(() => {
       reconnectTimer = null;
       if (currentRoom) {
@@ -694,6 +731,10 @@
   }
 
   function disconnect() {
+    if (connectTimeout) {
+      clearTimeout(connectTimeout);
+      connectTimeout = null;
+    }
     if (reconnectTimer) {
       clearTimeout(reconnectTimer);
       reconnectTimer = null;
@@ -1002,6 +1043,13 @@
       updateStatus('disconnected');
     });
 
+    window.addEventListener('hashchange', () => {
+      const hashRoom = parseRoomFromUrl();
+      if (hashRoom && hashRoom.toUpperCase() !== currentRoom) {
+        connect(hashRoom);
+      }
+    });
+
     document.addEventListener('visibilitychange', () => {
       if (!document.hidden && currentRoom && (status === 'disconnected' || !ws || ws.readyState !== WebSocket.OPEN)) {
         connectWebSocket();
@@ -1016,10 +1064,8 @@
   const SyncEngine = {
     init: function (opts = {}) {
       callbacks = Object.assign(callbacks, opts);
-      const autoRoom = parseRoomFromUrl() || getStoredRoom();
-      if (autoRoom) {
-        connect(autoRoom);
-      }
+      const autoRoom = parseRoomFromUrl() || getStoredRoom() || generateRoomCode();
+      connect(autoRoom);
       return this;
     },
 

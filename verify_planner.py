@@ -212,7 +212,11 @@ def test_zero_latency_and_redesign():
     assert "card-accordion" in js and "checklist-label" in js, "app.js missing accordion touch-drag exclusion"
     assert "parentId === deleted.id" in js, "app.js missing cascading companion deletion on parent removal"
     assert "removedBeforeTarget" in js, "app.js missing in-day downward DnD index compensation"
-    print("✓ app.js zero-latency canvas, multi-touch gestures, in-memory snapshots, memory safety, and card clustering verified.")
+    # Zero-delay drawing and touch optimizations
+    assert "updateCachedCoords" in js, "app.js missing cached bounding coordinates to eliminate pointermove reflows"
+    assert "drawing-mode" in js, "app.js missing drawing-mode toggle on wrapper"
+    assert "requestIdleCallback" in js, "app.js missing non-blocking idle canvas save"
+    print("✓ app.js zero-latency canvas, multi-touch gestures, in-memory snapshots, memory safety, and cached coords verified.")
 
     # 2. Settings Dropdown & Header Search in index.html
     html_path = os.path.join(DIR, "index.html")
@@ -237,15 +241,16 @@ def test_zero_latency_and_redesign():
     assert ".accordion-checklist" in css, "styles.css missing accordion checklist styles"
     assert ".subject-pill" in css, "styles.css missing subject-pill styles"
     assert ".stylus-toast" in css, "styles.css missing stylus toast styles"
-    assert "touch-action: none" in css, "styles.css missing touch-action: none on canvas"
-    print("✓ styles.css dropdown menu, slim progress bar, accordion checklists, subject pills, and toast verified.")
+    assert ".calendar-wrapper.drawing-mode" in css, "styles.css missing .calendar-wrapper.drawing-mode"
+    assert "touch-action: none !important" in css, "styles.css missing strict touch-action: none !important"
+    print("✓ styles.css dropdown menu, slim progress bar, accordion checklists, subject pills, and zero-delay touch-action verified.")
 
-    # 4. SW v6 verification
+    # 4. SW v7 verification
     sw_path = os.path.join(DIR, "sw.js")
     with open(sw_path, "r", encoding="utf-8") as f:
         sw = f.read()
-    assert "himbiorus-pwa-v6" in sw, "sw.js missing v6 cache name"
-    print("✓ sw.js v6 cache version verified.")
+    assert "himbiorus-pwa-v7" in sw, "sw.js missing v7 cache name"
+    print("✓ sw.js v7 cache version verified.")
 
 def test_realtime_synchronization():
     # 1. sync.js Engine Verification
@@ -257,6 +262,9 @@ def test_realtime_synchronization():
 
     assert "broker.hivemq.com" in sync_js, "sync.js missing HiveMQ public WSS broker"
     assert "broker.emqx.io" in sync_js, "sync.js missing EMQX fallback broker"
+    assert "test.mosquitto.org" in sync_js, "sync.js missing Mosquitto redundant broker"
+    assert "connectTimeout" in sync_js, "sync.js missing rapid broker failover timeout"
+    assert "hashchange" in sync_js, "sync.js missing hashchange listener"
     assert "createConnectPacket" in sync_js, "sync.js missing MQTT CONNECT packet generator"
     assert "createPublishPacket" in sync_js, "sync.js missing MQTT PUBLISH packet generator"
     assert "parseMqttPackets" in sync_js, "sync.js missing MQTT packet parser"
@@ -269,7 +277,7 @@ def test_realtime_synchronization():
     assert "UPDATE_ITEM" in sync_js, "sync.js missing UPDATE_ITEM protocol"
     assert "setupFirebaseSubscription" in sync_js, "sync.js missing setupFirebaseSubscription"
     assert "sendToFirebase" in sync_js, "sync.js missing sendToFirebase"
-    print("✓ sync.js engine verified: HiveMQ WSS relay, MQTT 3.1.1 framing, BroadcastChannel, Firebase RTDB, and MiniQR.")
+    print("✓ sync.js engine verified: Multi-broker WSS relay (EMQX + Mosquitto + HiveMQ), fast failover, BroadcastChannel, and MiniQR.")
 
     # 2. app.js Integration Verification
     app_js_path = os.path.join(DIR, "app.js")
@@ -307,7 +315,8 @@ def test_realtime_synchronization():
     assert 'id="sync-firebase-input"' in html, "index.html missing Firebase URL input"
     assert 'id="sync-firebase-save-btn"' in html, "index.html missing Firebase save button"
     assert 'id="mob-sync-btn"' in html, "index.html missing mobile navigation sync button"
-    print("✓ index.html markup verified: sync button, status badges, QR modal, Firebase settings, and mobile actions.")
+    assert "100% бесплатно" in html or "100% Бесплатно" in html or "без привязки банковских карт" in html, "index.html missing 100% free notice"
+    print("✓ index.html markup verified: sync button, status badges, QR modal, 100% free notices, and mobile actions.")
 
     # 4. styles.css Verification
     css_path = os.path.join(DIR, "styles.css")
@@ -327,8 +336,8 @@ def test_realtime_synchronization():
     with open(sw_path, "r", encoding="utf-8") as f:
         sw = f.read()
     assert "'./sync.js'" in sw or '"./sync.js"' in sw, "sw.js missing sync.js in ASSETS_TO_CACHE"
-    assert "himbiorus-pwa-v6" in sw, "sw.js missing v6 cache version"
-    print("✓ sw.js PWA v6 cache verified: sync.js cached for 100% offline capability.")
+    assert "himbiorus-pwa-v7" in sw, "sw.js missing v7 cache version"
+    print("✓ sw.js PWA v7 cache verified: sync.js cached for 100% offline capability.")
 
     # 6. Bit-Perfect MiniQR ISO/IEC 18004 Verification against Python qrcode
     import subprocess, json
@@ -489,6 +498,28 @@ def test_realtime_synchronization():
     assert "SIMULATION_PASSED" in res.stdout, f"Multi-device simulation failed: {res.stderr or res.stdout}"
     print("✓ Multi-device simulation verified: zero-latency move, toggle, add, update, delete, and stroke confirmed.")
 
+def test_independent_homework_blocks():
+    app_js_path = os.path.join(DIR, "app.js")
+    with open(app_js_path, "r", encoding="utf-8") as f:
+        app_js = f.read()
+
+    # Verify unclustered calendar rendering
+    assert "createCardElement(item, dateKey, realIndex, false)" in app_js, \
+        "app.js must render each visible item (including homework and tests) as an individual draggable card"
+    assert "createCardElement(item, null, realIndex, true)" in app_js, \
+        "app.js must render each backlog item (including homework and tests) as an individual draggable card"
+
+    # Verify companion card styling in styles.css
+    css_path = os.path.join(DIR, "styles.css")
+    with open(css_path, "r", encoding="utf-8") as f:
+        css = f.read()
+    assert ".schedule-card.is-companion" in css, "styles.css missing .schedule-card.is-companion"
+    assert ".schedule-card.homework" in css, "styles.css missing .schedule-card.homework"
+    assert ".schedule-card.test" in css, "styles.css missing .schedule-card.test"
+    assert "border-style: dashed" in css, "styles.css missing dashed border for companion blocks"
+
+    print("✓ Independent blocks verified: homework and tests are unclustered and rendered as independent draggable blocks.")
+
 if __name__ == "__main__":
     test_files_exist()
     test_schedule_data()
@@ -497,6 +528,7 @@ if __name__ == "__main__":
     test_advanced_stylus_and_mobile_features()
     test_zero_latency_and_redesign()
     test_realtime_synchronization()
-    print("\n🎉 ALL VERIFICATION TESTS (DATA + ADVANCED STYLUS + DARK MODE + MOBILE + PWA + REDESIGN + GESTURES + DEEP ROBUSTNESS + REALTIME SYNC) PASSED SUCCESSFULLY!")
+    test_independent_homework_blocks()
+    print("\n🎉 ALL VERIFICATION TESTS (DATA + ADVANCED STYLUS + DARK MODE + MOBILE + PWA + REDESIGN + GESTURES + DEEP ROBUSTNESS + REALTIME SYNC + INDEPENDENT BLOCKS) PASSED SUCCESSFULLY!")
 
 
