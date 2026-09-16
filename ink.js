@@ -190,6 +190,8 @@
       drawStroke(inkCtx, strokes[id], pointsOf(id, strokes[id]));
       rendered.add(id);
     });
+    // Недописанная линия ручки живёт прямо на этом холсте — возвращаем её
+    if (current && current.stroke.t === 'pen') drawStroke(inkCtx, current.stroke, current.pts);
   }
 
   // Дорисовываем только новые штрихи; если что-то удалили — перерисовываем всё
@@ -230,7 +232,7 @@
       if (now - (liveSeen[cid] || 0) > STALE_LIVE_MS) return;
       drawStroke(overlayCtx, entry, decodePoints(entry.p));
     });
-    if (current && current.stroke.t !== 'eraser' && current.stroke.t !== 'stroke-eraser') {
+    if (current && current.stroke.t === 'hl') {
       drawStroke(overlayCtx, current.stroke, current.pts);
     }
   }
@@ -370,6 +372,9 @@
       // Ластик сразу стирает на основном холсте
       const seg = pts.slice(-3);
       drawStroke(inkCtx, current.stroke, seg.length ? seg : [[x, y, pr]]);
+    } else if (current.stroke.t === 'pen') {
+      // Ручку рисуем сразу на основном холсте — без ожидания кадра анимации
+      drawPenSegment(current, pts.length - 1);
     } else {
       requestOverlay();
     }
@@ -379,6 +384,44 @@
       lastLiveSent = now;
       sendLive();
     }
+  }
+
+  // Отрезок между серединами соседних точек — та же кривая, что и в drawStroke
+  function drawPenSegment(stroke, i) {
+    const pts = stroke.pts;
+    if (i < 1) return;
+    const a = pts[i - 1], b = pts[i];
+    const start = i >= 2 ? [(pts[i - 2][0] + a[0]) / 2, (pts[i - 2][1] + a[1]) / 2] : [a[0], a[1]];
+    const end = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    inkCtx.save();
+    inkCtx.globalCompositeOperation = 'source-over';
+    inkCtx.lineCap = 'round';
+    inkCtx.lineJoin = 'round';
+    inkCtx.strokeStyle = stroke.stroke.c;
+    inkCtx.lineWidth = widthFor(stroke.stroke, (a[2] + b[2]) / 2);
+    inkCtx.beginPath();
+    inkCtx.moveTo(start[0], start[1]);
+    inkCtx.quadraticCurveTo(a[0], a[1], end[0], end[1]);
+    inkCtx.stroke();
+    inkCtx.restore();
+  }
+
+  function drawPenTail(stroke) {
+    const pts = stroke.pts;
+    if (pts.length === 1) {
+      drawStroke(inkCtx, stroke.stroke, pts);
+      return;
+    }
+    const a = pts[pts.length - 2], b = pts[pts.length - 1];
+    inkCtx.save();
+    inkCtx.lineCap = 'round';
+    inkCtx.strokeStyle = stroke.stroke.c;
+    inkCtx.lineWidth = widthFor(stroke.stroke, b[2]);
+    inkCtx.beginPath();
+    inkCtx.moveTo((a[0] + b[0]) / 2, (a[1] + b[1]) / 2);
+    inkCtx.lineTo(b[0], b[1]);
+    inkCtx.stroke();
+    inkCtx.restore();
   }
 
   function sendLive() {
@@ -400,6 +443,10 @@
       return;
     }
     if (done.pts.length === 0) { requestOverlay(); return; }
+    if (done.stroke.t === 'pen') {
+      drawPenTail(done);
+      rendered.add(done.id); // уже на холсте — syncInk не будет рисовать повторно
+    }
 
     const record = Object.assign({}, done.stroke, { p: encodePoints(done.pts), ts: Date.now(), by: Store.clientId });
     const updates = { [`strokes/${done.pid}/${done.id}`]: record };
@@ -414,7 +461,7 @@
   function discardStroke() {
     const was = current;
     current = null;
-    if (was && was.stroke.t === 'eraser') redrawAll();
+    if (was && (was.stroke.t === 'eraser' || was.stroke.t === 'pen')) redrawAll();
     if (Store.room && was) Store.update({ ['live/' + Store.clientId]: null }, { ephemeral: true, silent: true });
     requestOverlay();
   }
@@ -590,7 +637,8 @@
     ink = $('#ink-canvas');
     overlay = $('#overlay-canvas');
     inkCtx = ink.getContext('2d');
-    overlayCtx = overlay.getContext('2d', { desynchronized: true }) || overlay.getContext('2d');
+    // Без desynchronized: Safari на iPad не показывает такой холст, пока линия не закончена
+    overlayCtx = overlay.getContext('2d');
 
     overlay.addEventListener('pointerdown', onDown, { passive: false });
     overlay.addEventListener('pointermove', onMove, { passive: false });
