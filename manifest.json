@@ -1,12 +1,12 @@
 {
   "name": "ХимБиоРус ЕГЭ — Планировщик",
   "short_name": "ХимБиоРус",
-  "start_url": "./index.html",
+  "start_url": "./",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#f7f9fb",
-  "theme_color": "#4f46e5",
-  "description": "Интерактивный Drag & Drop планировщик расписания годового курса ЕГЭ с перемещаемыми блоками",
+  "background_color": "#08080a",
+  "theme_color": "#08080a",
+  "description": "Годовой курс ХимБиоРус ЕГЭ: расписание, заметки стилусом и синхронизация между устройствами",
   "icons": [
     {
       "src": "icon.png",

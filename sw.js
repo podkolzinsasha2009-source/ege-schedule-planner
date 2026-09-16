@@ -3,21 +3,20 @@
 // «ХимБиоРус ЕГЭ» — Работает без сервера и интернета
 // ==========================================================================
 
-const CACHE_NAME = 'himbiorus-pwa-v13';
+const CACHE_NAME = 'himbiorus-pwa-v20';
 
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
-  './styles.css',
-  './sync.js',
-  './app.js',
-  './schedule_data.js',
+  './styles.css?v=20',
+  './schedule_data.js?v=20',
+  './qrcode.min.js?v=20',
+  './store.js?v=20',
+  './ink.js?v=20',
+  './photos.js?v=20',
+  './app.js?v=20',
   './manifest.json',
-  './icon.png',
-  './tablet_qr.svg',
-  './tablet_qr.png',
-  './' + encodeURIComponent('ХимБиоРус_Расписание_ЕГЭ.docx'),
-  './ХимБиоРус_Расписание_ЕГЭ.docx'
+  './icon.png'
 ];
 
 // Установка: надежное индивидуальное кэширование, не падающее из-за одного файла

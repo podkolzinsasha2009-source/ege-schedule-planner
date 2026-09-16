@@ -1,661 +1,337 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="ru" data-theme="dark">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="ХимБиоРус">
-  <meta name="theme-color" content="#4f46e5">
-  <title>Годовой курс / ХимБиоРус / ЕГЭ — Интерактивный планировщик</title>
-  <link rel="stylesheet" href="styles.css?v=13">
+  <meta name="theme-color" content="#08080a">
+  <meta name="description" content="Годовой курс ХимБиоРус ЕГЭ: расписание, заметки стилусом и синхронизация между устройствами">
+  <title>ХимБиоРус — Годовой курс ЕГЭ</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="styles.css?v=20">
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icon.png">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📅</text></svg>">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3CradialGradient id='g' cx='50%25' cy='60%25' r='60%25'%3E%3Cstop offset='0' stop-color='%23ffb36b'/%3E%3Cstop offset='1' stop-color='%23ff5a00'/%3E%3C/radialGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='16' fill='%230b0b0d'/%3E%3Ccircle cx='32' cy='38' r='16' fill='url(%23g)'/%3E%3C/svg%3E">
 </head>
 <body>
+  <div class="page-glow" aria-hidden="true"></div>
 
-  <!-- ==========================================
-       ВЕРХНЯЯ ПАНЕЛЬ И ШАПКА В СТИЛЕ PDF
-       ========================================== -->
-  <header class="app-header">
-    <div class="header-top">
-      <div class="brand-section">
-        <h1 class="brand-title">Годовой курс</h1>
-        <span class="brand-subtitle">/ ХимБиоРус / ЕГЭ</span>
-        <span class="brand-tag">v2.0</span>
+  <!-- ============================== ШАПКА -->
+  <header class="topbar">
+    <a class="brand" href="#" aria-label="ХимБиоРус">
+      <span class="brand-sun" aria-hidden="true"></span>
+      <span class="brand-name">ХимБио<span>Рус</span></span>
+    </a>
+
+    <nav class="topbar-nav" aria-label="Период">
+      <button class="icon-btn" id="period-prev" type="button" aria-label="Предыдущий период">‹</button>
+      <div class="topbar-period">
+        <span id="period-title"></span>
+        <small id="period-counter"></small>
       </div>
+      <button class="icon-btn" id="period-next" type="button" aria-label="Следующий период">›</button>
+    </nav>
 
-      <!-- Компактный переключатель периодов со стрелками -->
-      <div class="period-nav">
-        <button id="prev-period-btn" class="nav-btn" title="Предыдущий период (Стрелка влево)">‹</button>
-        <div id="current-period-display" class="current-period-display">15 августа — 30 августа</div>
-        <button id="next-period-btn" class="nav-btn" title="Следующий период (Стрелка вправо)">›</button>
-      </div>
-
-      <!-- Поиск по темам и урокам на переднем плане -->
-      <div class="search-wrapper header-search">
-        <span class="search-icon">🔍</span>
-        <input type="text" id="search-input" class="search-input" placeholder="Поиск по урокам, темам...">
-        <button id="search-clear" class="search-clear" title="Очистить поиск">✕</button>
-      </div>
-
-      <!-- Главные действия: Кнопка стилуса, синхронизация и единое меню «Настройки» -->
-      <div class="header-actions">
-        <button id="draw-mode-btn" class="btn btn-primary-highlight draw-mode-btn" title="Включить рукописные заметки стилусом (GoodNotes)">
-          ✍️ Стилус
-        </button>
-
-        <button id="sync-btn" class="btn btn-sync-status" title="Синхронизация между устройствами в реальном времени (Планшет ↔ ПК)">
-          <span class="sync-dot" id="header-sync-dot"></span>
-          <span class="sync-btn-label">🔗 Синхр</span>
-          <span id="sync-peer-badge" class="badge-counter" style="display: none;">1</span>
-        </button>
-
-        <!-- Выпадающее меню настроек и сервисных действий -->
-        <div class="dropdown-wrapper" id="settings-dropdown-wrapper">
-          <button id="settings-dropdown-btn" class="btn btn-outline settings-btn" aria-haspopup="true" aria-expanded="false" title="Настройки и утилиты">
-            ⚙️ Настройки <span class="chevron">▾</span>
-          </button>
-          <div class="dropdown-menu" id="settings-dropdown-menu">
-            <div class="dropdown-header">Интерфейс и режим</div>
-            <button id="theme-toggle-btn" class="dropdown-item" title="Переключить тему оформления (Светлая / Тёмная)">
-              🌙 Тёмная тема
-            </button>
-            <button id="week-view-toggle-btn" class="dropdown-item" title="Переключить отображение недели: Колонки (как на ПК) или Список">
-              📊 Вид недели: Колонки (ПК)
-            </button>
-            <button id="menu-insert-photo-btn" class="dropdown-item" title="Вставить фото из галереи или загрузок">
-              🖼️ Вставить фото
-            </button>
-            <button id="menu-sync-btn" class="dropdown-item" title="Синхронизация между устройствами в реальном времени">
-              🔗 Синхронизация устройств
-            </button>
-            <button id="tablet-btn" class="dropdown-item" title="Открыть на планшете (iPad / Android)">
-              📱 На планшет
-            </button>
-            <button id="open-backlog-btn" class="dropdown-item" title="Открыть список отложенных задач">
-              📋 Отложенные задачи <span id="backlog-badge" class="badge-counter" style="display: none;">0</span>
-            </button>
-
-            <div class="dropdown-divider"></div>
-            <div class="dropdown-header">Файлы и экспорт</div>
-            <a href="ХимБиоРус_Расписание_ЕГЭ.docx" download="ХимБиоРус_Расписание_ЕГЭ.docx" class="dropdown-item" title="Скачать расписание в формате Word (.docx) для заметок и стилуса">
-              📄 Word (.docx)
-            </a>
-            <button id="export-btn" class="dropdown-item" title="Скачать резервную копию JSON">
-              📥 Экспорт (JSON)
-            </button>
-            <label class="dropdown-item" style="cursor: pointer;" title="Загрузить сохраненный JSON">
-              📤 Импорт (JSON)
-              <input type="file" id="import-file-input" accept=".json" style="display: none;">
-            </label>
-            <button id="print-btn" class="dropdown-item" title="Распечатать или сохранить в PDF">
-              🖨️ Печать / PDF
-            </button>
-
-            <div class="dropdown-divider"></div>
-            <button id="reset-btn" class="dropdown-item danger" title="Вернуть исходное расписание из PDF">
-              ↺ Сбросить расписание
-            </button>
-          </div>
+    <div class="topbar-actions">
+      <button class="sync-pill" type="button" data-open-sync data-sync-status data-state="local">
+        <span class="sync-dot" aria-hidden="true"></span>
+        <span class="sync-text" data-sync-text>Только это устройство</span>
+      </button>
+      <button class="btn btn-primary hide-mobile" type="button" data-toggle-draw>
+        <span aria-hidden="true">✎</span> Стилус
+      </button>
+      <div class="menu-anchor">
+        <button class="icon-btn" type="button" data-open-menu="main-menu" aria-haspopup="true" aria-expanded="false" aria-label="Меню">⋯</button>
+        <div class="menu" id="main-menu" role="menu" hidden>
+          <button type="button" role="menuitem" data-action="add-photo"><span>🖼</span> Добавить фото</button>
+          <button type="button" role="menuitem" data-action="edit-pinned"><span>📍</span> Изменить закреплённые фото</button>
+          <button type="button" role="menuitem" data-open-backlog><span>🗂</span> Отложенные <em data-backlog-count hidden></em></button>
+          <button type="button" role="menuitem" data-open-sync><span>🔗</span> Синхронизация</button>
+          <hr>
+          <button type="button" role="menuitem" data-action="theme"><span>◐</span> <b data-theme-label>Светлая тема</b></button>
+          <a role="menuitem" href="ХимБиоРус_Расписание_ЕГЭ.docx" download><span>📄</span> Расписание в Word</a>
+          <button type="button" role="menuitem" data-action="print"><span>🖨</span> Печать</button>
+          <button type="button" role="menuitem" data-action="export"><span>⬇</span> Скачать резервную копию</button>
+          <button type="button" role="menuitem" data-action="import"><span>⬆</span> Восстановить из копии</button>
+          <hr>
+          <button type="button" role="menuitem" data-action="refresh-app"><span>↻</span> Обновить сайт</button>
+          <button type="button" role="menuitem" class="danger" data-action="reset"><span>⟲</span> Сбросить расписание</button>
         </div>
       </div>
-    </div>
-
-    <!-- Вкладки всех 12 страниц расписания -->
-    <div class="periods-tabs-wrapper">
-      <div id="periods-tabs" class="periods-tabs">
-        <!-- Генерируется через JS -->
-      </div>
-    </div>
-
-    <!-- Тонкий минималистичный прогресс-бар в шапке (Linear/Vercel стиль) -->
-    <div class="header-progress-track" title="Общий прогресс курса">
-      <div id="bar-bio" class="progress-bar-bio" style="width: 0%;"></div>
-      <div id="bar-chem" class="progress-bar-chem" style="width: 0%;"></div>
-      <div id="bar-rus" class="progress-bar-rus" style="width: 0%;"></div>
     </div>
   </header>
 
-  <!-- ==========================================
-       ПАНЕЛЬ УПРАВЛЕНИЯ И ФИЛЬТРЫ
-       ========================================== -->
-  <section class="controls-bar">
-    <div class="controls-row">
-      <!-- Фильтры по предметам -->
-      <div class="filter-group">
-        <span class="filter-label">Предмет:</span>
-        <button class="chip active" data-subject="all">Все предметы</button>
-        <button class="chip bio" data-subject="bio">Биология</button>
-        <button class="chip chem" data-subject="chem">Химия</button>
-        <button class="chip rus" data-subject="rus">Русский язык</button>
+  <main>
+    <!-- ============================== ГЕРОЙ -->
+    <section class="hero">
+      <div class="hero-badge">
+        <span class="hero-badge-chip">ЕГЭ 2027</span>
+        <span>Годовой курс · август — апрель</span>
       </div>
+      <h1 class="hero-title">Весь год подготовки<br><span>на одной доске.</span></h1>
+      <p class="hero-sub">Биология, химия и русский: двигайте занятия, отмечайте выполненное и пишите стилусом прямо поверх расписания — на компьютере, планшете и телефоне одновременно.</p>
 
-      <!-- Фильтры по типам занятий -->
-      <div class="filter-group">
-        <span class="filter-label">Тип:</span>
-        <button class="chip active" data-category="all">Все типы</button>
-        <button class="chip" data-category="theory">Теории</button>
-        <button class="chip" data-category="practice">Практики</button>
-        <button class="chip" data-category="test">Тесты</button>
-        <button class="chip" data-category="homework">Письменные ДЗ</button>
-        <button class="chip" data-category="mock">Пробники</button>
-        <button class="chip" data-category="webinar">Вебинары</button>
-      </div>
-
-      <!-- Тумблер автоматических плашек (Тесты и Письменные ДЗ) -->
-      <label class="toggle-wrapper" title="Отображать связанные тесты и письменные ДЗ">
-        <input type="checkbox" id="toggle-companions" class="toggle-input" checked>
-        <div class="toggle-switch"></div>
-        <span class="toggle-text">Сопутствующие тесты и ДЗ</span>
-      </label>
-    </div>
-
-    <!-- Тонкая полоса прогресса и статус-сводка курса -->
-    <div class="progress-summary">
-      <div class="progress-info">
-        <span class="progress-label">Прогресс:</span>
-        <strong id="progress-percent">0%</strong>
-        <span id="progress-counts" class="progress-sub">(0 из 0)</span>
-      </div>
-      <div class="stats-badges">
-        <div class="stat-item">
-          <span class="stat-dot bio"></span>
-          <span id="stat-bio">Био: 0/0</span>
+      <div class="hero-stats">
+        <div class="stat stat-main">
+          <span class="stat-value" data-progress="all">0%</span>
+          <span class="stat-label">выполнено · <b data-progress-count>0 из 0</b></span>
         </div>
-        <div class="stat-item">
-          <span class="stat-dot chem"></span>
-          <span id="stat-chem">Хим: 0/0</span>
+        <div class="stat bio">
+          <span class="stat-head"><i></i> Биология <b data-progress="bio">0/0</b></span>
+          <span class="stat-bar"><span data-bar="bio"></span></span>
         </div>
-        <div class="stat-item">
-          <span class="stat-dot rus"></span>
-          <span id="stat-rus">Рус: 0/0</span>
+        <div class="stat chem">
+          <span class="stat-head"><i></i> Химия <b data-progress="chem">0/0</b></span>
+          <span class="stat-bar"><span data-bar="chem"></span></span>
+        </div>
+        <div class="stat rus">
+          <span class="stat-head"><i></i> Русский <b data-progress="rus">0/0</b></span>
+          <span class="stat-bar"><span data-bar="rus"></span></span>
         </div>
       </div>
-    </div>
-  </section>
 
-  <!-- ==========================================
-       ПЛАВАЮЩАЯ ПАНЕЛЬ СТИЛУСА GOODNOTES
-       ========================================== -->
-  <div id="stylus-toolbar" class="stylus-toolbar" style="display: none;">
-    <div class="stylus-toolbar-inner">
-      <div class="tool-group tools-selection">
-        <button id="tool-pen" class="stylus-btn active" data-tool="pen" title="Перо / Ручка">
-          🖊️ <span class="btn-text">Ручка</span>
-        </button>
-        <button id="tool-highlighter" class="stylus-btn" data-tool="highlighter" title="Текстовыделитель (полупрозрачный маркер)">
-          🖍️ <span class="btn-text">Маркер</span>
-        </button>
-        <button id="tool-eraser" class="stylus-btn" data-tool="eraser" title="Ластик">
-          🧹 <span class="btn-text">Ластик</span>
-        </button>
-        <button id="tool-stroke-eraser" class="stylus-btn" data-tool="stroke-eraser" title="Ластик линий (GoodNotes): удаляет линию целиком при касании любого края">
-          ⚡ <span class="btn-text">Штрих-ластик</span>
-        </button>
-        <button id="tool-pan" class="stylus-btn" data-tool="pan" title="Скролл / Перемещение по расписанию">
-          ✋ <span class="btn-text">Скролл</span>
-        </button>
+      <div class="sun" aria-hidden="true">
+        <div class="sun-core"></div>
+        <div class="sun-rim"></div>
       </div>
+    </section>
 
-      <div class="toolbar-divider"></div>
+    <!-- ============================== ДОСКА -->
+    <section class="board-shell" aria-label="Расписание">
+      <div class="periods" id="period-tabs" role="tablist" aria-label="Периоды курса"></div>
 
-      <!-- Вставка фото из галереи / загрузок -->
-      <div class="tool-group insert-photo-group">
-        <button id="tool-insert-photo" class="stylus-btn photo-btn" title="Вставить фото из галереи или загрузок (можно свободно перемещать, растягивать и масштабировать)">
-          🖼️ <span class="btn-text">Фото</span>
-        </button>
-        <input type="file" id="stylus-photo-input" accept="image/*" style="display: none;">
-      </div>
-
-      <div class="toolbar-divider"></div>
-
-      <!-- Защита от касания ладони (Palm Rejection) -->
-      <div class="tool-group palm-rejection-group">
-        <button id="palm-rejection-btn" class="stylus-btn palm-btn active" title="Защита от касания ладонью (Palm Rejection): рисовать только стилусом (Apple Pencil / S-Pen). Касания рукой и ладонью не рисуют!">
-          🖐️ <span class="palm-status">Стилус</span>
-        </button>
-      </div>
-
-      <div class="toolbar-divider"></div>
-
-      <!-- Цветовая палитра -->
-      <div class="tool-group color-palette">
-        <button class="color-dot bio active" data-color="#10b981" title="Зеленый (Биология)"></button>
-        <button class="color-dot chem" data-color="#8b5cf6" title="Фиолетовый (Химия)"></button>
-        <button class="color-dot rus" data-color="#ec4899" title="Розовый (Русский)"></button>
-        <button class="color-dot highlight" data-color="rgba(250, 204, 21, 0.45)" title="Желтый хайлайтер"></button>
-        <button class="color-dot navy" data-color="#3b82f6" title="Синий"></button>
-        <button class="color-dot dark" data-color="#0f172a" title="Темный"></button>
-        <button class="color-dot light" data-color="#f8fafc" title="Светлый"></button>
-        <label class="color-picker-label" title="Выбрать свой цвет">
-          🎨
-          <input type="color" id="stylus-custom-color" value="#10b981" style="display: none;">
+      <div class="controls">
+        <div class="chips" id="subject-filters" role="group" aria-label="Предмет">
+          <button type="button" class="chip is-active" data-subject="all">Все</button>
+          <button type="button" class="chip bio" data-subject="bio"><i></i>Биология</button>
+          <button type="button" class="chip chem" data-subject="chem"><i></i>Химия</button>
+          <button type="button" class="chip rus" data-subject="rus"><i></i>Русский</button>
+        </div>
+        <label class="select">
+          <span class="sr-only">Тип занятия</span>
+          <select id="category-filter"></select>
         </label>
-      </div>
-
-      <div class="toolbar-divider"></div>
-
-      <!-- Толщина штриха, ползунок и нажим пера -->
-      <div class="tool-group stroke-sizes">
-        <button class="size-btn active" data-size="2" title="2px">
-          <span class="size-preview" style="width: 3px; height: 3px;"></span>
-        </button>
-        <button class="size-btn" data-size="4" title="4px">
-          <span class="size-preview" style="width: 6px; height: 6px;"></span>
-        </button>
-        <button class="size-btn" data-size="8" title="8px">
-          <span class="size-preview" style="width: 10px; height: 10px;"></span>
-        </button>
-        <button class="size-btn" data-size="20" title="20px">
-          <span class="size-preview" style="width: 16px; height: 16px;"></span>
-        </button>
-        <div class="slider-wrapper" id="stylus-stroke-size" title="Регулировка толщины штриха ползунком (1px — 40px)">
-          <input type="range" id="stylus-size-slider" min="1" max="40" value="2" class="stylus-range-slider" title="Толщина пера">
-          <span id="stylus-size-val" class="slider-val">2px</span>
+        <label class="switch">
+          <input type="checkbox" id="companions-toggle" checked>
+          <span class="switch-track" aria-hidden="true"></span>
+          <span>Тесты и ДЗ</span>
+        </label>
+        <label class="search">
+          <span aria-hidden="true">⌕</span>
+          <input id="search" type="search" placeholder="Поиск по темам" autocomplete="off">
+          <button type="button" id="search-clear" aria-label="Очистить поиск" hidden>✕</button>
+        </label>
+        <div class="controls-end">
+          <button class="btn btn-ghost" type="button" data-action="add-photo">🖼 Фото</button>
+          <button class="btn btn-ghost" type="button" data-open-backlog>Отложенные <em class="count" data-backlog-count hidden></em></button>
+          <div class="zoom" role="group" aria-label="Масштаб">
+            <button type="button" id="zoom-out" aria-label="Уменьшить">−</button>
+            <button type="button" id="zoom-fit" title="По ширине экрана"><span id="zoom-label">100%</span></button>
+            <button type="button" id="zoom-in" aria-label="Увеличить">+</button>
+          </div>
         </div>
-        <button id="stylus-pressure-btn" class="stylus-btn pressure-btn active" title="Степень нажатия стилуса (Apple Pencil / S-Pen): сильнее нажим — толще линия">
-          ✍️ <span class="btn-text">Нажим: <b id="pressure-status-text">Вкл</b></span>
-        </button>
       </div>
 
-      <div class="toolbar-divider"></div>
-
-      <!-- Действия -->
-      <div class="tool-group actions-group">
-        <button id="stylus-undo-btn" class="stylus-btn icon-only" title="Отменить последнее действие (2 пальца / Ctrl+Z)">↩️</button>
-        <button id="stylus-redo-btn" class="stylus-btn icon-only" title="Повторить отмененное действие (3 пальца / Ctrl+Y)">↪️</button>
-        <button id="stylus-clear-btn" class="stylus-btn icon-only" title="Очистить рисунки периода">🗑️</button>
-        <button id="stylus-close-btn" class="stylus-btn icon-only" title="Закрыть режим рисования (заметки сохранятся)">✕</button>
+      <div class="filter-note" id="filter-note" hidden>
+        Включён фильтр — рисунки и фото скрыты, чтобы не съехать с плашек.
+        <button type="button" id="filter-reset">Показать всё</button>
       </div>
-    </div>
-  </div>
 
-  <!-- Мобильный быстрый селектор дня недели -->
-  <div id="mobile-day-selector" class="mobile-day-selector">
-    <button class="mob-day-chip active" data-day="all">Все дни</button>
-    <button class="mob-day-chip" data-day="Пн">Пн</button>
-    <button class="mob-day-chip" data-day="Вт">Вт</button>
-    <button class="mob-day-chip" data-day="Ср">Ср</button>
-    <button class="mob-day-chip" data-day="Чт">Чт</button>
-    <button class="mob-day-chip" data-day="Пт">Пт</button>
-    <button class="mob-day-chip" data-day="Сб">Сб</button>
-    <button class="mob-day-chip" data-day="Вс">Вс</button>
-    <button id="mob-view-toggle-btn" class="mob-day-chip mob-view-btn" title="Переключить: Колонки (как на ПК) / Список">📊 Колонки</button>
-  </div>
-
-  <!-- ==========================================
-       ОСНОВНАЯ СЕТКА КАЛЕНДАРЯ
-       ========================================== -->
-  <main class="main-content">
-    <div class="calendar-wrapper" id="calendar-wrapper">
-      <div id="calendar-container" class="calendar-grid">
-        <!-- Генерируется динамически через app.js -->
+      <div class="board-viewport" id="board-viewport">
+        <div class="board-sizer" id="board-sizer">
+          <div class="board" id="board">
+            <div class="weeks" id="weeks"></div>
+            <div class="photos-layer" id="photos-layer"></div>
+            <canvas id="ink-canvas" class="ink-canvas"></canvas>
+            <canvas id="overlay-canvas" class="ink-canvas ink-overlay"></canvas>
+          </div>
+        </div>
       </div>
-      <div id="placed-images-layer" class="placed-images-layer"></div>
-      <canvas id="stylus-canvas" class="stylus-canvas"></canvas>
-    </div>
+    </section>
+
+    <footer class="footer reveal">
+      <div class="legend">
+        <span><i class="lg-dot bio"></i>Биология</span>
+        <span><i class="lg-dot chem"></i>Химия</span>
+        <span><i class="lg-dot rus"></i>Русский</span>
+        <span><b class="lg-sign">+</b>Доп. вебинар</span>
+        <span><b class="lg-sign">✓</b>Зачёт</span>
+        <span><b class="lg-sign">!</b>Рубежная аттестация</span>
+        <span><i class="lg-dash"></i>Тест или ДЗ к занятию</span>
+      </div>
+      <p>Плашки перетаскиваются мышью, а на планшете — долгим нажатием. Щипок двумя пальцами меняет масштаб. Расписание курса может меняться.</p>
+    </footer>
   </main>
 
-  <!-- ==========================================
-       ЛЕГЕНДА ВНИЗУ (ИЗ ОРИГИНАЛЬНОГО PDF)
-       ========================================== -->
-  <footer class="app-footer">
-    <div class="footer-content">
-      <div class="legend-items">
-        <div class="legend-item">
-          <div class="legend-icon-badge">+</div>
-          <span>Дополнительный вебинар</span>
-        </div>
-        <div class="legend-item">
-          <div class="legend-icon-badge">✓</div>
-          <span>Зачет</span>
-        </div>
-        <div class="legend-item">
-          <div class="legend-icon-badge">!</div>
-          <span>Рубежная аттестация</span>
-        </div>
-        <div class="legend-item">
-          <div class="legend-color-dot bio"></div>
-          <span>Биология</span>
-        </div>
-        <div class="legend-item">
-          <div class="legend-color-dot chem"></div>
-          <span>Химия</span>
-        </div>
-        <div class="legend-item">
-          <div class="legend-color-dot rus"></div>
-          <span>Русский язык</span>
-        </div>
-      </div>
-
-      <div class="footer-disclaimer">
-        Перетаскивайте блоки между днями мышкой. Расписание курса может поменяться.
-      </div>
+  <!-- ============================== ПАНЕЛЬ СТИЛУСА -->
+  <div class="ink-toolbar" id="ink-toolbar" hidden>
+    <div class="ink-group">
+      <button type="button" class="tool" data-tool="pen" title="Ручка">✎</button>
+      <button type="button" class="tool" data-tool="hl" title="Маркер">▰</button>
+      <button type="button" class="tool" data-tool="eraser" title="Ластик">◌</button>
+      <button type="button" class="tool" data-tool="stroke-eraser" title="Стереть линию целиком">⌫</button>
     </div>
-  </footer>
-
-  <!-- ==========================================
-       ВЫДВИЖНАЯ ПАНЕЛЬ БЭКЛОГА (ОТЛОЖЕННЫЕ ЗАДАЧИ)
-       ========================================== -->
-  <div id="drawer-overlay" class="drawer-overlay"></div>
-  <aside id="drawer" class="drawer">
-    <div class="drawer-header">
-      <h2 class="drawer-title">📋 Отложенные уроки</h2>
-      <button id="close-backlog-btn" class="drawer-close" title="Закрыть">✕</button>
+    <div class="ink-group ink-colors">
+      <button type="button" class="swatch" data-color="#ff7a1a" style="--c:#ff7a1a" title="Оранжевый"></button>
+      <button type="button" class="swatch" data-color="#3ddc97" style="--c:#3ddc97" title="Биология"></button>
+      <button type="button" class="swatch" data-color="#a78bfa" style="--c:#a78bfa" title="Химия"></button>
+      <button type="button" class="swatch" data-color="#ff6fae" style="--c:#ff6fae" title="Русский"></button>
+      <button type="button" class="swatch" data-color="#ffd23f" style="--c:#ffd23f" title="Жёлтый"></button>
+      <button type="button" class="swatch" data-color="#f4f1ec" style="--c:#f4f1ec" title="Белый"></button>
+      <button type="button" class="swatch" data-color="#111111" style="--c:#111111" title="Чёрный"></button>
+      <label class="swatch swatch-custom" title="Свой цвет"><input type="color" id="ink-custom-color" value="#39a0ff"></label>
     </div>
-    <div class="drawer-body">
-      <div id="backlog-dropzone" class="drawer-dropzone">
-        <!-- Список отложенных карточек -->
-      </div>
+    <div class="ink-group ink-size">
+      <span class="size-dot" id="ink-size-dot" aria-hidden="true"></span>
+      <input type="range" id="ink-size" min="1" max="24" value="3" aria-label="Толщина">
+      <output id="ink-size-value">3</output>
     </div>
-  </aside>
-
-  <!-- ==========================================
-       МОДАЛЬНОЕ ОКНО ДОБАВЛЕНИЯ / РЕДАКТИРОВАНИЯ
-       ========================================== -->
-  <div id="block-modal-backdrop" class="modal-backdrop">
-    <div class="modal-card">
-      <div class="modal-header">
-        <h3 id="modal-title" class="modal-title">Плашка расписания</h3>
-        <button id="modal-close-btn" class="drawer-close" title="Закрыть">✕</button>
-      </div>
-      <div class="modal-body">
-        <div class="form-group">
-          <label class="form-label" for="modal-field-title">Название плашки *</label>
-          <input type="text" id="modal-field-title" class="form-input" placeholder="например: Теория №1, Практика №3, Тест">
-        </div>
-
-        <div class="form-group">
-          <label class="form-label" for="modal-field-subtitle">Тема / Описание</label>
-          <input type="text" id="modal-field-subtitle" class="form-input" placeholder="например: Строение клетки, ОВР, Сочинение">
-        </div>
-
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label" for="modal-field-subject">Предмет</label>
-            <select id="modal-field-subject" class="form-select">
-              <option value="bio">Биология (зеленый)</option>
-              <option value="chem">Химия (сиреневый)</option>
-              <option value="rus">Русский язык (розовый)</option>
-              <option value="general">Общее / Оплата</option>
-            </select>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label" for="modal-field-category">Тип активности</label>
-            <select id="modal-field-category" class="form-select">
-              <option value="theory">Теория</option>
-              <option value="practice">Практика</option>
-              <option value="test">Тест</option>
-              <option value="homework">Письменное ДЗ</option>
-              <option value="mock">Пробник</option>
-              <option value="webinar">Вебинар</option>
-              <option value="credit">Зачет</option>
-              <option value="attestation">Рубежная аттестация</option>
-              <option value="payment">Оплата месяца</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label" for="modal-field-time">Время (необязательно)</label>
-            <input type="text" id="modal-field-time" class="form-input" placeholder="16:00 или 14:00">
-          </div>
-
-          <div class="form-group">
-            <label class="form-label" for="modal-field-icon">Спец-иконка</label>
-            <select id="modal-field-icon" class="form-select">
-              <option value="none">Без иконки</option>
-              <option value="plus">+ (Вебинар)</option>
-              <option value="check">✓ (Зачет)</option>
-              <option value="alert">! (Аттестация)</option>
-            </select>
-          </div>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button id="modal-cancel-btn" class="btn btn-outline">Отмена</button>
-        <button id="modal-save-btn" class="btn btn-primary">Сохранить</button>
-      </div>
+    <div class="ink-group">
+      <button type="button" class="tool text" id="ink-pressure" title="Толщина зависит от нажима">Нажим</button>
+      <button type="button" class="tool text" id="ink-stylus-only" title="Рисовать только стилусом">Только стилус</button>
+    </div>
+    <div class="ink-group">
+      <button type="button" class="tool" id="ink-undo" title="Отменить (2 пальца)">↶</button>
+      <button type="button" class="tool" id="ink-redo" title="Повторить (3 пальца)">↷</button>
+      <button type="button" class="tool" id="ink-clear" title="Стереть все рисунки периода">🗑</button>
+      <button type="button" class="btn btn-primary btn-sm" id="ink-done">Готово</button>
     </div>
   </div>
 
-  <!-- ==========================================
-       МОДАЛЬНОЕ ОКНО «ОТКРЫТЬ НА ПЛАНШЕТЕ»
-       ========================================== -->
-  <div id="tablet-modal-backdrop" class="modal-backdrop">
-    <div class="modal-card tablet-modal-card">
-      <div class="modal-header">
-        <h3 class="modal-title">📱 Использование на планшете (iPad / Android)</h3>
-        <button id="tablet-modal-close-btn" class="drawer-close" title="Закрыть">✕</button>
-      </div>
-      <div class="modal-body tablet-modal-body">
-        <div class="tablet-options-grid">
-          
-          <!-- Вариант 1: Полноценное интерактивное веб-приложение (PWA) -->
-          <div class="tablet-option-card">
-            <div class="option-header">
-              <span class="option-badge primary">Рекомендуется</span>
-              <h4>1. Интерактивное приложение (Web-App)</h4>
-            </div>
-            <p class="option-desc">
-              Полноценный Drag & Drop пальцем или стилусом (Apple Pencil / S-Pen), отметки выполнения, бэклог и мгновенное сохранение.
-            </p>
-            
-            <div class="qr-container">
-              <img id="tablet-qr-image" src="tablet_qr.svg" alt="QR-код для подключения планшета" class="tablet-qr-img">
-              <div class="qr-caption">Наведите камеру любого телефона или планшета на этот QR-код — сайт откроется из интернета!</div>
-            </div>
-
-            <div class="network-link-box">
-              <span class="link-label">Прямая ссылка в интернете (работает везде):</span>
-              <a id="tablet-network-link" href="https://podkolzinsasha2009-source.github.io/ege-schedule-planner/" target="_blank" class="network-url-display">https://podkolzinsasha2009-source.github.io/ege-schedule-planner/</a>
-            </div>
-
-            <div class="pwa-steps">
-              <div class="pwa-step">
-                <strong>На iPad (Safari):</strong> Откройте ссылку → нажмите иконку «Поделиться» (<span class="share-icon">⎙/↑</span>) → выберите <em>«На экран „Домой“»</em>. Приложение откроется на весь экран без рамок браузера!
-              </div>
-              <div class="pwa-step">
-                <strong>На Android (Chrome):</strong> Меню (3 точки) → <em>«Установить приложение»</em> или <em>«Добавить на главный экран»</em>.
-              </div>
-            </div>
-          </div>
-
-          <!-- Вариант 2: Документ Word (.docx) -->
-          <div class="tablet-option-card">
-            <div class="option-header">
-              <span class="option-badge secondary">Для заметок и стилуса</span>
-              <h4>2. Таблица в формате Word (.docx)</h4>
-            </div>
-            <p class="option-desc">
-              Готовый файл со всеми 12 периодами в альбомной ориентации и оригинальных цветах предметов. Удобно для рукописных заметок.
-            </p>
-
-            <div class="word-download-box">
-              <div class="word-icon">📄</div>
-              <div class="word-info">
-                <div class="word-filename">ХимБиоРус_Расписание_ЕГЭ.docx</div>
-                <div class="word-meta">12 периодов • Альбомный формат • 55 КБ</div>
-              </div>
-            </div>
-
-            <a href="ХимБиоРус_Расписание_ЕГЭ.docx" download="ХимБиоРус_Расписание_ЕГЭ.docx" class="btn btn-primary btn-block">
-              ⬇️ Скачать файл Word (.docx)
-            </a>
-
-            <div class="word-tips">
-              💡 На планшете файл можно открыть в <strong>Microsoft Word</strong>, <strong>Apple Pages</strong> или импортировать в <strong>GoodNotes / Notability</strong> и рисовать пометки Apple Pencil / стилусом.
-            </div>
-          </div>
-
-          <!-- Вариант 3: Резервные копии и управление данными -->
-          <div class="tablet-option-card">
-            <div class="option-header">
-              <span class="option-badge secondary">Управление данными</span>
-              <h4>3. Резервные копии и сброс</h4>
-            </div>
-            <p class="option-desc">
-              Сохраняйте резервную копию расписания и рукописных заметок на телефон/планшет, загружайте сохраненный файл или печатайте расписание.
-            </p>
-            <div class="tablet-actions-list" style="display: flex; flex-direction: column; gap: 8px; margin-top: 12px;">
-              <button id="modal-export-btn" class="btn btn-outline btn-block">📥 Экспорт расписания и заметок (JSON)</button>
-              <label class="btn btn-outline btn-block" style="cursor: pointer; text-align: center;">
-                📤 Импорт расписания и заметок
-                <input type="file" id="modal-import-file-input" accept=".json" style="display: none;">
-              </label>
-              <button id="modal-print-btn" class="btn btn-outline btn-block">🖨️ Печать / Сохранить в PDF</button>
-              <button id="modal-reset-btn" class="btn btn-danger-outline btn-block">↺ Сбросить к исходному расписанию</button>
-            </div>
-          </div>
-
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button id="tablet-modal-ok-btn" class="btn btn-primary">Понятно</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ==========================================
-       МОДАЛЬНОЕ ОКНО: СИНХРОНИЗАЦИЯ УСТРОЙСТВ
-       ========================================== -->
-  <div id="sync-modal-backdrop" class="modal-backdrop">
-    <div class="modal-dialog sync-modal-dialog">
-      <div class="modal-header">
-        <h3 class="modal-title">🔗 Синхронизация устройств</h3>
-        <button id="sync-modal-close-btn" class="modal-close-btn" title="Закрыть окно">✕</button>
-      </div>
-      <div class="modal-body sync-modal-body">
-        <!-- Статус подключения и счетчик устройств -->
-        <div class="sync-status-banner" id="sync-status-card">
-          <div class="sync-status-indicator">
-            <span class="sync-dot-large" id="modal-sync-dot"></span>
-            <div>
-              <div class="sync-status-title" id="modal-sync-title">Подключение к сети...</div>
-              <div class="sync-status-subtitle" id="modal-sync-subtitle">Защищенный WSS-канал реального времени</div>
-            </div>
-          </div>
-          <div class="sync-peers-badge" id="modal-peers-count">
-            1 устройство в сети
-          </div>
-        </div>
-
-        <!-- Текущий код комнаты -->
-        <div class="sync-card">
-          <div class="sync-card-header">
-            <span class="sync-card-badge">Код комнаты</span>
-            <span class="sync-card-label">Используйте для сопряжения</span>
-          </div>
-          <div class="sync-room-row">
-            <div class="sync-room-code" id="modal-room-code">---</div>
-            <button id="sync-copy-code-btn" class="btn btn-outline" title="Скопировать код комнаты">
-              📋 Копировать код
-            </button>
-            <button id="sync-new-room-btn" class="btn btn-outline" title="Создать новый случайный код комнаты">
-              ↺ Сменить
-            </button>
-          </div>
-        </div>
-
-        <!-- QR-код для моментального сопряжения -->
-        <div class="sync-card sync-qr-card">
-          <div class="sync-card-header">
-            <span class="sync-card-badge">Мгновенный вход по QR</span>
-            <span class="sync-card-label">Наведите камеру iPad или телефона</span>
-          </div>
-          <div class="sync-qr-container" id="modal-qr-container">
-            <!-- Динамический векторный SVG QR генерируется автоматически -->
-          </div>
-          <div class="sync-link-preview" id="modal-link-preview">https://...</div>
-          <button id="sync-copy-link-btn" class="btn btn-primary btn-block">
-            📋 Скопировать ссылку сопряжения
-          </button>
-        </div>
-
-        <!-- Подключение к существующей комнате -->
-        <div class="sync-card">
-          <div class="sync-card-header">
-            <span class="sync-card-badge">Присоединиться</span>
-            <span class="sync-card-label">Введите код с другого устройства</span>
-          </div>
-          <div class="sync-join-row">
-            <input type="text" id="sync-join-input" class="sync-input" placeholder="Например: ХИМ-749" maxlength="20">
-            <button id="sync-join-btn" class="btn btn-outline">Войти</button>
-          </div>
-        </div>
-
-        <!-- Опциональное подключение Google Firebase RTDB -->
-        <div class="sync-card sync-firebase-card">
-          <div class="sync-card-header">
-            <span class="sync-card-badge firebase">🔥 Google Firebase</span>
-            <span class="sync-card-label" id="sync-firebase-status">Не настроен</span>
-          </div>
-          <p class="sync-card-desc">
-            Синхронизация работает <strong>100% бесплатно</strong> через защищенную сеть WSS MQTT реле (EMQX, Mosquitto, HiveMQ) — <strong>без привязки банковских карт</strong>, без регистрации и без оплат. При желании вы можете подключить собственный URL базы Firebase RTDB.
-          </p>
-          <div class="sync-firebase-row">
-            <input type="url" id="sync-firebase-input" class="sync-input" placeholder="https://your-project-default-rtdb.firebaseio.com" spellcheck="false">
-            <button id="sync-firebase-save-btn" class="btn btn-outline" title="Сохранить и подключить базу Firebase">Сохранить</button>
-            <button id="sync-firebase-clear-btn" class="btn btn-outline danger" title="Очистить и вернуться на MQTT">✕</button>
-          </div>
-        </div>
-
-        <!-- Список возможностей синхронизации -->
-        <div class="sync-features-note">
-          <div class="feature-item">✓ <strong>Drag & Drop</strong>: перенос уроков, тестов и ДЗ между днями отражается на всех экранах (&lt;50 мс)</div>
-          <div class="feature-item">✓ <strong>Чекбоксы</strong>: отметки о выполнении задач синхронизируются мгновенно</div>
-          <div class="feature-item">✓ <strong>Стилус GoodNotes</strong>: рукописные заметки со смартфона или iPad передаются сразу на ПК и обратно</div>
-          <div class="feature-item">✓ <strong>100% Бесплатно</strong>: нулевая задержка, без привязки карт, без аккаунтов и оплат</div>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button id="sync-modal-done-btn" class="btn btn-primary">Понятно</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ==========================================
-       НИЖНЯЯ ПАНЕЛЬ ДЛЯ ТЕЛЕФОНОВ (iOS & ANDROID)
-       ========================================== -->
-  <nav class="mobile-bottom-bar" id="mobile-bottom-bar">
-    <button id="mob-period-btn" class="mob-bar-item" title="Выбрать период курса">
-      <span class="mob-bar-icon">📅</span>
-      <span class="mob-bar-label">Период</span>
-    </button>
-    <button id="mob-draw-btn" class="mob-bar-item" title="Стилус GoodNotes">
-      <span class="mob-bar-icon">✏️</span>
-      <span class="mob-bar-label">Стилус</span>
-    </button>
-    <button id="mob-sync-btn" class="mob-bar-item" title="Синхронизация устройств">
-      <span class="mob-bar-icon">🔗<span id="mob-sync-badge" class="badge-dot" style="display: none;"></span></span>
-      <span class="mob-bar-label">Синхр</span>
-    </button>
-    <button id="mob-theme-btn" class="mob-bar-item" title="Тёмная / Светлая тема">
-      <span class="mob-bar-icon">🌙</span>
-      <span class="mob-bar-label">Тема</span>
-    </button>
-    <button id="mob-backlog-btn" class="mob-bar-item" title="Отложенные задачи">
-      <span class="mob-bar-icon">📋<span id="mob-backlog-badge" class="badge-dot" style="display: none;"></span></span>
-      <span class="mob-bar-label">Бэклог</span>
-    </button>
-    <button id="mob-tablet-btn" class="mob-bar-item" title="Планшет и Word">
-      <span class="mob-bar-icon">📱</span>
-      <span class="mob-bar-label">Планшет</span>
-    </button>
+  <!-- ============================== НИЖНЯЯ ПАНЕЛЬ (ТЕЛЕФОН) -->
+  <nav class="bottom-bar" aria-label="Быстрые действия">
+    <button type="button" data-toggle-draw><span>✎</span>Стилус</button>
+    <button type="button" data-action="add-photo"><span>🖼</span>Фото</button>
+    <button type="button" data-open-backlog><span>🗂<em data-backlog-count hidden></em></span>Отложено</button>
+    <button type="button" data-open-sync><span>🔗<em data-sync-peers hidden></em></span>Синхр.</button>
+    <button type="button" data-open-menu="main-menu"><span>⋯</span>Ещё</button>
   </nav>
 
+  <!-- ============================== ОТЛОЖЕННЫЕ -->
+  <div class="scrim" id="backlog-scrim" hidden></div>
+  <aside class="backlog" id="backlog" aria-label="Отложенные плашки">
+    <header>
+      <div>
+        <h2>Отложенные</h2>
+        <p>Перетащите плашку сюда или обратно в любой день.</p>
+      </div>
+      <button class="icon-btn" type="button" id="backlog-close" aria-label="Закрыть">✕</button>
+    </header>
+    <div class="backlog-list" id="backlog-list" data-drop="backlog"></div>
+    <button class="btn btn-ghost btn-block" type="button" id="backlog-add">+ Новая плашка</button>
+  </aside>
+
+  <!-- ============================== ОКНО ПЛАШКИ -->
+  <div class="modal" id="item-modal" hidden>
+    <form class="dialog" id="item-form" autocomplete="off">
+      <header>
+        <div>
+          <h2 id="item-modal-title">Плашка</h2>
+          <p id="item-modal-date"></p>
+        </div>
+        <button class="icon-btn" type="button" data-close aria-label="Закрыть">✕</button>
+      </header>
+      <label class="field"><span>Название</span><input name="title" maxlength="120" required></label>
+      <label class="field"><span>Описание</span><input name="subtitle" maxlength="200"></label>
+      <div class="field-row">
+        <label class="field"><span>Предмет</span><select name="subject"></select></label>
+        <label class="field"><span>Тип</span><select name="category"></select></label>
+      </div>
+      <div class="field-row">
+        <label class="field"><span>Время</span><input name="time" maxlength="12" placeholder="16:00"></label>
+        <label class="field"><span>Значок</span>
+          <select name="icon">
+            <option value="">Нет</option>
+            <option value="plus">+ Доп. вебинар</option>
+            <option value="check">✓ Зачёт</option>
+            <option value="alert">! Аттестация</option>
+          </select>
+        </label>
+      </div>
+      <label class="switch switch-row">
+        <input type="checkbox" name="completed">
+        <span class="switch-track" aria-hidden="true"></span>
+        <span>Выполнено</span>
+      </label>
+      <footer>
+        <button class="btn btn-danger" type="button" id="item-delete">Удалить</button>
+        <span class="spacer"></span>
+        <button class="btn btn-ghost" type="button" data-close>Отмена</button>
+        <button class="btn btn-primary" type="submit">Сохранить</button>
+      </footer>
+    </form>
+  </div>
+
+  <!-- ============================== ОКНО СИНХРОНИЗАЦИИ -->
+  <div class="modal" id="sync-modal" hidden>
+    <div class="dialog dialog-wide">
+      <header>
+        <div>
+          <h2>Синхронизация</h2>
+          <p class="sync-status-line" data-sync-status data-state="local"><span class="sync-dot"></span><span data-sync-text></span></p>
+        </div>
+        <button class="icon-btn" type="button" data-close aria-label="Закрыть">✕</button>
+      </header>
+
+      <div id="sync-local-block">
+        <p class="lead">Создайте комнату на одном устройстве и откройте её ссылку или QR-код на остальных. Всё, что вы двигаете, отмечаете, рисуете и вставляете, появится везде. Работает бесплатно и без привязки карты. Компьютер можно выключать: данные хранятся в облаке.</p>
+        <button class="btn btn-primary btn-block" type="button" id="sync-create">Создать комнату</button>
+      </div>
+
+      <div id="sync-room-block" hidden>
+        <div class="room-grid">
+          <div class="room-qr" id="sync-qr"></div>
+          <div class="room-info">
+            <span class="room-label">Код комнаты</span>
+            <button class="room-code" type="button" id="sync-copy-code" title="Скопировать код"><span id="sync-room-code"></span></button>
+            <code class="room-link" id="sync-link"></code>
+            <button class="btn btn-primary" type="button" id="sync-copy-link">Скопировать ссылку</button>
+            <span class="room-label">Устройства в сети</span>
+            <ul class="devices" id="sync-devices"></ul>
+            <small id="sync-pending"></small>
+          </div>
+        </div>
+      </div>
+
+      <form class="join" id="sync-join-form">
+        <label class="field">
+          <span>Подключиться к другой комнате</span>
+          <input id="sync-join-input" placeholder="Код или ссылка комнаты" autocapitalize="characters">
+        </label>
+        <button class="btn btn-ghost" type="submit">Подключиться</button>
+      </form>
+
+      <details class="advanced">
+        <summary>Дополнительно</summary>
+        <form id="sync-firebase-form" class="join">
+          <label class="field">
+            <span>Сервер Firebase Realtime Database</span>
+            <input id="sync-firebase" inputmode="url" placeholder="https://….firebaseio.com">
+          </label>
+          <button class="btn btn-ghost" type="submit">Сохранить</button>
+        </form>
+        <button class="btn btn-danger btn-block" type="button" id="sync-leave">Отключить это устройство</button>
+      </details>
+    </div>
+  </div>
+
+  <input type="file" id="photo-input" accept="image/*" multiple hidden>
+  <input type="file" id="import-input" accept="application/json,.json" hidden>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
   <!-- Аварийный экран: показывается, если сайт не запустился -->
-  <div id="boot-rescue" style="display:none;position:fixed;inset:0;z-index:999999;background:#0f1020;color:#fff;font:16px/1.5 system-ui,sans-serif;padding:24px;box-sizing:border-box;align-items:center;justify-content:center;text-align:center;">
+  <div id="boot-rescue" style="display:none;position:fixed;inset:0;z-index:999999;background:#08080a;color:#fff;font:16px/1.5 system-ui,sans-serif;padding:24px;box-sizing:border-box;align-items:center;justify-content:center;text-align:center;">
     <div style="max-width:420px;">
       <div style="font-size:40px;">🛠️</div>
       <h2 style="margin:8px 0;">Сайт не запустился</h2>
-      <p style="opacity:.8;">Скорее всего, на устройстве застряла старая версия. Нажмите кнопку — кэш обновится. Ваши заметки, рисунки и расписание сохранятся.</p>
+      <p style="opacity:.8;">Скорее всего, на устройстве застряла старая версия. Нажмите кнопку — кэш обновится. Ваши данные сохранятся.</p>
       <p id="boot-rescue-error" style="opacity:.6;font-size:12px;word-break:break-word;"></p>
-      <button onclick="location.href=location.pathname+'?reset=1'" style="font-size:18px;padding:12px 24px;border:0;border-radius:12px;background:#6d5dfc;color:#fff;">Обновить сайт</button>
+      <button onclick="location.href=location.pathname+'?reset=1'+location.hash" style="font-size:18px;padding:12px 24px;border:0;border-radius:999px;background:#ff6b1a;color:#fff;">Обновить сайт</button>
     </div>
   </div>
   <script>
@@ -664,7 +340,7 @@
       window.__bootErrors = [];
       window.addEventListener('error', function (e) { window.__bootErrors.push(e.message); });
       if (/[?&]reset=1/.test(location.search)) {
-        var done = function () { location.replace(location.pathname); };
+        var done = function () { location.replace(location.pathname + location.hash); };
         var jobs = [];
         if ('serviceWorker' in navigator) {
           jobs.push(navigator.serviceWorker.getRegistrations().then(function (regs) {
@@ -677,10 +353,9 @@
           }));
         }
         Promise.all(jobs).then(done, done);
-        document.write('<p style="font:18px system-ui;padding:24px">Обновление сайта…</p>');
+        document.write('<p style="font:18px system-ui;padding:24px;color:#fff;background:#08080a">Обновление сайта…</p>');
         throw new Error('reset in progress');
       }
-      // Если через 8 секунд приложение не отметилось как запущенное — показываем экран восстановления
       setTimeout(function () {
         if (!window.__appBooted) {
           var el = document.getElementById('boot-rescue');
@@ -693,20 +368,18 @@
     })();
   </script>
 
-  <!-- База данных курса и скрипты логики -->
-  <script src="schedule_data.js?v=13"></script>
-  <script src="sync.js?v=13"></script>
-  <script src="app.js?v=13"></script>
+  <script src="schedule_data.js?v=20"></script>
+  <script src="qrcode.min.js?v=20"></script>
+  <script src="store.js?v=20"></script>
+  <script src="ink.js?v=20"></script>
+  <script src="photos.js?v=20"></script>
+  <script src="app.js?v=20"></script>
   <script>
-    // Регистрация Service Worker для автономной оффлайн-работы (PWA)
     if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js')
-          .then(reg => {
-            console.log('Service Worker зарегистрирован:', reg.scope);
-            try { reg.update(); } catch(e) {}
-          })
-          .catch(err => console.log('Ошибка регистрации Service Worker:', err));
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('./sw.js').then(function (reg) {
+          try { reg.update(); } catch (e) {}
+        }).catch(function (err) { console.log('Service Worker:', err); });
       });
     }
   </script>

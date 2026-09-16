@@ -1,3902 +1,1089 @@
 // ==========================================================================
-// ИНТЕРАКТИВНЫЙ ПЛАНИРОВЩИК «ХИМБИОРУС ЕГЭ»
-// Управление состоянием, Drag-and-Drop, Фильтры, Поиск и Хранилище
+// ПЛАНИРОВЩИК «ХИМБИОРУС ЕГЭ» — доска расписания
+// Периоды, плашки, перетаскивание, фильтры, масштаб доски, окна и меню.
+// Данные живут в HBStore (store.js), стилус — в ink.js, фото — в photos.js.
 // ==========================================================================
 
 (function () {
   'use strict';
 
-  const STORAGE_KEY = 'himbiorus_schedule_state_v2';
+  const Store = window.HBStore;
+  const COURSE = Array.isArray(window.COURSE_DATA) ? window.COURSE_DATA : [];
 
-  // Глобальное состояние
-  let state = {
-    periods: [],
-    backlog: [],
-    currentPeriodIndex: 0,
-    filterSubject: 'all',     // 'all' | 'bio' | 'chem' | 'rus'
-    filterCategory: 'all',    // 'all' | 'theory' | 'practice' | 'test' | 'homework' | 'mock' | 'webinar'
-    showCompanions: true,     // показывать сопутствующие тесты и ДЗ
-    searchQuery: '',
-    editingItem: null,
-    editingTarget: null       // { dateKey, index, isBacklog }
+  // Геометрия доски в «логических» пикселях — одинаковая на всех устройствах,
+  // поэтому штрихи и фото ложатся в одно и то же место на ПК, планшете и телефоне.
+  const BOARD = { width: 1480, column: 200, gap: 8, pad: 16 };
+
+  const SUBJECTS = {
+    bio: { label: 'Биология', short: 'Био' },
+    chem: { label: 'Химия', short: 'Хим' },
+    rus: { label: 'Русский', short: 'Рус' },
+    general: { label: 'Общее', short: 'Общ' }
   };
 
-  // Переменная для отслеживания текущего перетаскиваемого объекта
-  let dragData = null;
+  const CATEGORIES = {
+    theory: 'Теория',
+    practice: 'Практика',
+    test: 'Тест',
+    homework: 'Письменное ДЗ',
+    webinar: 'Вебинар',
+    mock: 'Пробник',
+    review: 'Разбор',
+    attestation: 'Аттестация',
+    credit: 'Зачёт',
+    payment: 'Оплата'
+  };
 
-  // Очистка любых сопутствующих тестов к пробникам
-  function cleanMockCompanionTests(periods, backlog) {
-    const isMockTest = (it) => it.isCompanion && (it.id?.startsWith('mock_') || it.title?.toLowerCase().includes('пробник'));
-    if (periods) {
-      periods.forEach(p => {
-        Object.values(p.days || {}).forEach(day => {
-          if (day.items) {
-            day.items = day.items.filter(it => !isMockTest(it));
-          }
-        });
-      });
-    }
-    if (backlog) {
-      return backlog.filter(it => !isMockTest(it));
-    }
-    return [];
+  const ICONS = {
+    plus: { sign: '+', label: 'Дополнительный вебинар' },
+    check: { sign: '✓', label: 'Зачёт' },
+    alert: { sign: '!', label: 'Рубежная аттестация' }
+  };
+
+  const ui = {
+    periodIndex: 0,
+    subject: 'all',
+    category: 'all',
+    showCompanions: true,
+    query: '',
+    zoomMode: 'fit',
+    zoom: 1,
+    drawMode: false
+  };
+
+  const $ = (sel, root) => (root || document).querySelector(sel);
+  const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
+
+  function lsGet(key) { try { return localStorage.getItem(key); } catch (e) { return null; } }
+  function lsSet(key, value) { try { localStorage.setItem(key, value); } catch (e) {} }
+
+  function escapeHtml(text) {
+    return String(text == null ? '' : text)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
-  // ==========================================
-  // ТЁМНАЯ ТЕМА (DARK MODE)
-  // ==========================================
-  const THEME_STORAGE_KEY = 'himbiorus_theme';
+  // ------------------------------------------------------------------ данные
 
-  function initTheme() {
-    const savedTheme = localStorage.getItem(THEME_STORAGE_KEY);
-    const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-    const isDark = savedTheme ? (savedTheme === 'dark') : prefersDark;
-    applyTheme(isDark);
+  const dayIndex = {}; // dateKey → periodIndex
+  COURSE.forEach((p, i) => Object.keys(p.days || {}).forEach(d => { dayIndex[d] = i; }));
+
+  function currentPeriod() {
+    return COURSE[ui.periodIndex] || null;
   }
 
-  function applyTheme(isDark) {
-    document.body.classList.toggle('dark-mode', isDark);
-    try {
-      localStorage.setItem(THEME_STORAGE_KEY, isDark ? 'dark' : 'light');
-    } catch(e) {}
-
-    const metaTheme = document.querySelector('meta[name="theme-color"]');
-    if (metaTheme) {
-      metaTheme.setAttribute('content', isDark ? '#090d16' : '#4f46e5');
-    }
-
-    const themeBtn = document.getElementById('theme-toggle-btn');
-    if (themeBtn) {
-      themeBtn.innerHTML = isDark ? '☀️ Светлая' : '🌙 Тёмная';
-      themeBtn.title = isDark ? 'Включить светлую тему' : 'Включить тёмную тему';
-    }
-
-    const mobThemeBtn = document.getElementById('mob-theme-btn');
-    if (mobThemeBtn) {
-      const icon = mobThemeBtn.querySelector('.mob-bar-icon');
-      const label = mobThemeBtn.querySelector('.mob-bar-label');
-      if (icon) icon.textContent = isDark ? '☀️' : '🌙';
-      if (label) label.textContent = isDark ? 'Светлая' : 'Тёмная';
-    }
+  function allItems() {
+    const items = Store.get('items') || {};
+    return Object.keys(items).map(id => Object.assign({ id }, items[id]));
   }
 
-  function toggleTheme() {
-    const isDark = document.body.classList.contains('dark-mode');
-    applyTheme(!isDark);
-  }
-
-  // Инициализация приложения с полной изоляцией модулей от сбоев
-  function initApp() {
-    try { loadState(); } catch (e) { console.error('Ошибка loadState:', e); }
-    try { initTheme(); } catch (e) { console.error('Ошибка initTheme:', e); }
-    try { initWeekViewMode(); } catch (e) { console.error('Ошибка initWeekViewMode:', e); }
-    try { setupEventListeners(); } catch (e) { console.error('Ошибка setupEventListeners:', e); }
-    try { renderPeriodsNav(); } catch (e) { console.error('Ошибка renderPeriodsNav:', e); }
-    try { renderControls(); } catch (e) { console.error('Ошибка renderControls:', e); }
-    try { renderCalendar(); } catch (e) { console.error('Ошибка renderCalendar:', e); }
-    try { renderBacklog(); } catch (e) { console.error('Ошибка renderBacklog:', e); }
-    try { updateProgress(); } catch (e) { console.error('Ошибка updateProgress:', e); }
-    try { setupGoodNotesStylus(); } catch (e) { console.error('Ошибка setupGoodNotesStylus:', e); }
-    try { setupPlacedImagesModule(); } catch (e) { console.error('Ошибка setupPlacedImagesModule:', e); }
-    try { setupMobileNavigation(); } catch (e) { console.error('Ошибка setupMobileNavigation:', e); }
-    try { setupRealtimeSync(); } catch (e) { console.error('Ошибка setupRealtimeSync:', e); }
-    window.__appBooted = true;
-  }
-
-  // Восстановление структуры расписания.
-  // Firebase не хранит пустые массивы: у дней без уроков пропадает items: [],
-  // а массивы могут прийти объектами {"0": ..., "1": ...}. Без этой починки
-  // renderCalendar падает на первом пустом дне и расписание не отображается.
-  function toArray(value) {
-    if (Array.isArray(value)) return value.filter(Boolean);
-    if (value && typeof value === 'object') return Object.values(value).filter(Boolean);
-    return [];
-  }
-
-  function normalizePeriods(periods) {
-    return toArray(periods)
-      .filter(p => p && typeof p === 'object')
-      .map(p => {
-        const days = (p.days && typeof p.days === 'object') ? p.days : {};
-        Object.keys(days).forEach(key => {
-          const day = days[key];
-          if (!day || typeof day !== 'object') {
-            delete days[key];
-            return;
-          }
-          day.items = toArray(day.items);
-        });
-        p.days = days;
-        return p;
-      });
-  }
-
-  function countItems(periods) {
-    let total = 0;
-    (periods || []).forEach(p => {
-      Object.values(p.days || {}).forEach(d => { total += (d.items || []).length; });
+  function itemsByDate() {
+    const map = {};
+    allItems().forEach(it => {
+      const key = (it.date && dayIndex[it.date] !== undefined) ? it.date : 'backlog';
+      (map[key] = map[key] || []).push(it);
     });
-    return total;
+    Object.values(map).forEach(list => list.sort((a, b) => (a.order || 0) - (b.order || 0)));
+    return map;
   }
 
-  // Загрузка состояния из localStorage или базовых данных курса
-  function loadState() {
-    // Очищаем старую версию с тестами у пробников
-    try {
-      localStorage.removeItem('himbiorus_schedule_state_v1');
-    } catch(e) {}
-
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        const periods = parsed ? normalizePeriods(parsed.periods) : [];
-        if (periods.length > 0 && countItems(periods) > 0) {
-          state.periods = periods;
-          state.backlog = toArray(parsed.backlog);
-          state.currentPeriodIndex = Math.max(0, Math.min(parsed.currentPeriodIndex || 0, state.periods.length - 1));
-          state.showCompanions = parsed.showCompanions !== undefined ? parsed.showCompanions : true;
-          cleanMockCompanionTests(state.periods, state.backlog);
-          return;
-        }
-      } catch (e) {
-        console.error('Ошибка загрузки сохраненного состояния:', e);
-      }
+  function isVisible(it) {
+    if (!ui.showCompanions && it.isCompanion) return false;
+    if (ui.subject !== 'all' && it.subject !== ui.subject && it.subject !== 'general') return false;
+    if (ui.category !== 'all' && it.category !== ui.category) return false;
+    if (ui.query) {
+      const q = ui.query.toLowerCase();
+      if (!`${it.title || ''} ${it.subtitle || ''} ${it.time || ''}`.toLowerCase().includes(q)) return false;
     }
-
-    // Загрузка из window.COURSE_DATA
-    if (window.COURSE_DATA && Array.isArray(window.COURSE_DATA)) {
-      state.periods = JSON.parse(JSON.stringify(window.COURSE_DATA));
-      state.backlog = [];
-      state.currentPeriodIndex = 0;
-      cleanMockCompanionTests(state.periods, state.backlog);
-    } else {
-      console.error('База данных курса window.COURSE_DATA не найдена!');
-    }
-  }
-
-  // Сохранение состояния в localStorage
-  function saveState() {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({
-        periods: state.periods,
-        backlog: state.backlog,
-        currentPeriodIndex: state.currentPeriodIndex,
-        showCompanions: state.showCompanions
-      }));
-    } catch (e) {
-      console.error('Ошибка сохранения состояния:', e);
-    }
-    updateProgress();
-  }
-
-  // Сброс к оригинальному расписанию из PDF
-  function resetToDefault() {
-    if (confirm('Вы уверены, что хотите сбросить расписание к оригинальному виду из PDF? Все внесенные перестановки и новые плашки будут сброшены.')) {
-      localStorage.removeItem(STORAGE_KEY);
-      if (window.COURSE_DATA) {
-        state.periods = JSON.parse(JSON.stringify(window.COURSE_DATA));
-      }
-      state.backlog = [];
-      saveState();
-      renderCalendar();
-      renderBacklog();
-      renderPeriodsNav();
-      if (window.SyncEngine) {
-        window.SyncEngine.broadcastFullState({
-          periods: state.periods,
-          backlog: state.backlog,
-          currentPeriodIndex: state.currentPeriodIndex,
-          drawings: window.GoodNotesStylus ? window.GoodNotesStylus.getDrawingsBackup() : {}
-        });
-      }
-    }
-  }
-
-  // ==========================================================================
-  // ПЕРЕКЛЮЧЕНИЕ ПЕРИОДОВ С СОХРАНЕНИЕМ ЗАМЕТОК СТИЛУСА
-  // ==========================================================================
-
-  function selectPeriod(idx) {
-    if (idx < 0 || idx >= state.periods.length || idx === state.currentPeriodIndex) return;
-    if (window.GoodNotesStylus) {
-      window.GoodNotesStylus.saveDrawing();
-    }
-    state.currentPeriodIndex = idx;
-    saveState();
-    renderPeriodsNav();
-    renderCalendar();
-    loadPlacedImagesForPeriod(state.periods[idx].id);
-    if (window.GoodNotesStylus) {
-      setTimeout(() => {
-        window.GoodNotesStylus.resizeAndLoad();
-      }, 60);
-    }
-  }
-
-  // ==========================================================================
-  // РЕНДЕРИНГ НАВИГАЦИИ И ШАПКИ
-  // ==========================================================================
-
-  function renderPeriodsNav() {
-    const period = state.periods[state.currentPeriodIndex];
-    if (!period) return;
-
-    // Отображение названия текущего периода
-    const displayEl = document.getElementById('current-period-display');
-    if (displayEl) {
-      displayEl.textContent = `${period.name} (Период ${state.currentPeriodIndex + 1}/${state.periods.length})`;
-    }
-
-    // Стрелки вперед/назад
-    const prevBtn = document.getElementById('prev-period-btn');
-    const nextBtn = document.getElementById('next-period-btn');
-    if (prevBtn) prevBtn.disabled = state.currentPeriodIndex === 0;
-    if (nextBtn) nextBtn.disabled = state.currentPeriodIndex === state.periods.length - 1;
-
-    // Вкладки всех 12 периодов
-    const tabsContainer = document.getElementById('periods-tabs');
-    if (tabsContainer) {
-      tabsContainer.innerHTML = '';
-      state.periods.forEach((p, idx) => {
-        const btn = document.createElement('button');
-        btn.className = `tab-btn ${idx === state.currentPeriodIndex ? 'active' : ''}`;
-        btn.textContent = p.name;
-        btn.title = `Страница ${idx + 1}: ${p.name}`;
-        btn.addEventListener('click', () => {
-          selectPeriod(idx);
-        });
-        tabsContainer.appendChild(btn);
-      });
-      // Плавная прокрутка активной вкладки
-      const activeTab = tabsContainer.querySelector('.tab-btn.active');
-      if (activeTab) {
-        activeTab.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-      }
-    }
-  }
-
-  function renderControls() {
-    // Тумблер сопутствующих плашек
-    const toggle = document.getElementById('toggle-companions');
-    if (toggle) {
-      toggle.checked = state.showCompanions;
-    }
-
-    // Активные чипы предметов
-    document.querySelectorAll('.filter-group [data-subject]').forEach(chip => {
-      const subj = chip.getAttribute('data-subject');
-      chip.classList.toggle('active', subj === state.filterSubject);
-    });
-
-    // Активные чипы типов
-    document.querySelectorAll('.filter-group [data-category]').forEach(chip => {
-      const cat = chip.getAttribute('data-category');
-      chip.classList.toggle('active', cat === state.filterCategory);
-    });
-  }
-
-  // ==========================================================================
-  // РЕНДЕРИНГ КАЛЕНДАРЯ
-  // ==========================================================================
-
-  function renderCalendar() {
-    const period = state.periods[state.currentPeriodIndex];
-    const container = document.getElementById('calendar-container');
-    if (!container || !period) return;
-
-    container.innerHTML = '';
-
-    // Группируем дни по неделям (каждые 7 дней)
-    const dayEntries = Object.entries(period.days);
-    const weeks = [];
-    for (let i = 0; i < dayEntries.length; i += 7) {
-      weeks.push(dayEntries.slice(i, i + 7));
-    }
-
-    weeks.forEach((weekDays, weekIndex) => {
-      const weekEl = document.createElement('div');
-      weekEl.className = 'calendar-week';
-
-      weekDays.forEach(([dateKey, dayData]) => {
-        const dayCard = document.createElement('div');
-        dayCard.className = 'calendar-day-card';
-        dayCard.setAttribute('data-date', dateKey);
-
-        // Заголовок дня
-        const header = document.createElement('div');
-        header.className = 'day-header';
-        header.innerHTML = `
-          <div class="day-title">
-            <span class="day-name">${dayData.dayName}</span>
-            <span class="day-number">${dayData.dayNum}</span>
-            <span class="day-month">${dayData.month}</span>
-          </div>
-          <button class="day-add-btn" title="Добавить плашку на этот день" data-date="${dateKey}">+</button>
-        `;
-
-        header.querySelector('.day-add-btn')?.addEventListener('click', () => {
-          openCreateModal(dateKey);
-        });
-
-        // Дропзона дня
-        const dropzone = document.createElement('div');
-        dropzone.className = 'day-dropzone';
-        dropzone.setAttribute('data-date', dateKey);
-        setupDropzoneEvents(dropzone, dateKey, false);
-
-        // Отображение активностей: каждый урок, сопутствующий тест и домашка рендерятся как отдельный независимый блок
-        const visibleItems = dayData.items.filter(item => isItemVisible(item));
-        visibleItems.forEach((item) => {
-          const realIndex = dayData.items.indexOf(item);
-          const card = createCardElement(item, dateKey, realIndex, false);
-          dropzone.appendChild(card);
-        });
-
-        dayCard.appendChild(header);
-        dayCard.appendChild(dropzone);
-        weekEl.appendChild(dayCard);
-      });
-
-      container.appendChild(weekEl);
-    });
-
-    updateProgress();
-
-    if (window.GoodNotesStylus) {
-      setTimeout(() => {
-        window.GoodNotesStylus.resizeAndLoad();
-      }, 50);
-    }
-  }
-
-  // Проверка видимости карточки с учетом фильтров и поиска
-  function isItemVisible(item) {
-    // 1. Фильтр сопутствующих блоков (Тесты и ДЗ)
-    if (!state.showCompanions && item.isCompanion) {
-      return false;
-    }
-
-    // 2. Фильтр по предмету
-    if (state.filterSubject !== 'all') {
-      if (item.subject !== state.filterSubject && item.subject !== 'general') {
-        return false;
-      }
-    }
-
-    // 3. Фильтр по категории
-    if (state.filterCategory !== 'all') {
-      if (item.category !== state.filterCategory) {
-        return false;
-      }
-    }
-
-    // 4. Поисковый запрос
-    if (state.searchQuery.trim() !== '') {
-      const q = state.searchQuery.toLowerCase();
-      const titleMatch = (item.title || '').toLowerCase().includes(q);
-      const subMatch = (item.subtitle || '').toLowerCase().includes(q);
-      const timeMatch = (item.time || '').toLowerCase().includes(q);
-      if (!titleMatch && !subMatch && !timeMatch) {
-        return false;
-      }
-    }
-
     return true;
   }
 
-  // ==========================================================================
-  // СОЗДАНИЕ DOM-ЭЛЕМЕНТА КАРТОЧКИ
-  // ==========================================================================
-
-  function createCardElement(item, dateKey, index, isBacklog, attachedCompanions = []) {
-    const card = document.createElement('div');
-    const hasAccordion = attachedCompanions && attachedCompanions.length > 0;
-    card.className = `schedule-card ${item.subject} ${item.category} ${item.isCompanion ? 'is-companion' : ''} ${item.completed ? 'completed' : ''} ${hasAccordion ? 'has-accordion' : ''}`;
-    card.draggable = true;
-    card.setAttribute('data-id', item.id);
-    card.setAttribute('data-index', index);
-    if (dateKey) card.setAttribute('data-date', dateKey);
-
-    // Предмет
-    const subjectLabels = {
-      bio: 'Биология',
-      chem: 'Химия',
-      rus: 'Русский',
-      general: 'Общее'
-    };
-    const subjectPillHtml = `<span class="subject-pill ${item.subject}">${subjectLabels[item.subject] || ''}</span>`;
-
-    // Иконка
-    let iconHtml = '';
-    if (item.icon === 'plus') {
-      iconHtml = '<span class="icon-badge" title="Дополнительный вебинар">+</span>';
-    } else if (item.icon === 'check') {
-      iconHtml = '<span class="icon-badge" title="Зачет">✓</span>';
-    } else if (item.icon === 'alert') {
-      iconHtml = '<span class="icon-badge" title="Рубежная аттестация">!</span>';
-    }
-
-    // Время
-    let timeHtml = '';
-    if (item.time) {
-      timeHtml = `<span class="time-badge">🕒 ${item.time}</span>`;
-    }
-
-    // Бейдж типа (для тестов, ДЗ, пробников)
-    let typePillHtml = '';
-    if (item.category === 'test' && item.isCompanion) {
-      typePillHtml = '<span class="type-pill">ТЕСТ</span>';
-    } else if (item.category === 'homework' && item.isCompanion) {
-      typePillHtml = '<span class="type-pill">ПИСЬМЕННОЕ ДЗ</span>';
-    } else if (item.category === 'mock') {
-      typePillHtml = '<span class="type-pill">ПРОБНИК</span>';
-    }
-
-    card.innerHTML = `
-      <div class="card-header-row">
-        <div class="card-badges">
-          <span class="drag-handle" title="Перетащить пальцем или мышкой">⠿</span>
-          ${subjectPillHtml}
-          ${timeHtml}
-          ${typePillHtml}
-          ${iconHtml}
-        </div>
-        <div class="card-controls">
-          <input type="checkbox" class="card-check" title="Отметить как выполненное" ${item.completed ? 'checked' : ''}>
-          <button class="card-btn edit" title="Редактировать">✎</button>
-          <button class="card-btn delete" title="Удалить">✕</button>
-        </div>
-      </div>
-      <div class="card-title">${escapeHtml(item.title)}</div>
-      ${item.subtitle ? `<div class="card-subtitle">${escapeHtml(item.subtitle)}</div>` : ''}
-    `;
-
-    // Чекбокс завершения
-    const checkEl = card.querySelector('.card-check');
-    checkEl.addEventListener('change', (e) => {
-      e.stopPropagation();
-      item.completed = checkEl.checked;
-      card.classList.toggle('completed', item.completed);
-      saveState();
-      updateProgress();
-      if (window.SyncEngine) {
-        window.SyncEngine.broadcastToggle({
-          itemId: item.id,
-          completed: item.completed,
-          isCompanion: !!item.isCompanion,
-          parentId: item.parentId || null,
-          dateKey: dateKey,
-          isBacklog: isBacklog
-        });
-      }
-    });
-
-    // Редактирование
-    const editBtn = card.querySelector('.card-btn.edit');
-    editBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      openEditModal(item, dateKey, index, isBacklog);
-    });
-
-    // Удаление
-    const delBtn = card.querySelector('.card-btn.delete');
-    delBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (confirm(`Удалить плашку «${item.title}»?`)) {
-        deleteItem(dateKey, index, isBacklog, item.id);
-      }
-    });
-
-    // Раскрывающийся чек-лист сопутствующих активностей (тест + ДЗ)
-    if (hasAccordion) {
-      const compDoneCount = attachedCompanions.filter(c => c.completed).length;
-      const totalCompCount = attachedCompanions.length;
-      const allDone = compDoneCount === totalCompCount;
-
-      const accordionEl = document.createElement('div');
-      accordionEl.className = 'card-accordion';
-
-      const toggleBtn = document.createElement('button');
-      toggleBtn.type = 'button';
-      toggleBtn.className = `accordion-toggle ${allDone ? 'all-done' : ''}`;
-      toggleBtn.title = 'Развернуть связанные тесты и письменные ДЗ';
-      toggleBtn.innerHTML = `
-        <div class="accordion-toggle-left">
-          <span class="accordion-arrow">▸</span>
-          <span class="accordion-label">Задания (${compDoneCount}/${totalCompCount})</span>
-        </div>
-        <div class="accordion-chips">
-          ${attachedCompanions.map(c => `
-            <span class="mini-chip ${c.category}">${c.category === 'test' ? 'Тест' : 'ДЗ'}</span>
-          `).join('')}
-        </div>
-      `;
-
-      const checklistEl = document.createElement('div');
-      checklistEl.className = 'accordion-checklist';
-      checklistEl.style.display = 'none';
-
-      attachedCompanions.forEach(comp => {
-        const row = document.createElement('div');
-        row.className = `checklist-row ${comp.completed ? 'completed' : ''}`;
-        row.innerHTML = `
-          <label class="checklist-label">
-            <input type="checkbox" class="checklist-check" ${comp.completed ? 'checked' : ''}>
-            <span class="mini-tag ${comp.category}">${comp.category === 'test' ? 'ТЕСТ' : 'ДЗ'}</span>
-            <span class="checklist-task-title">${escapeHtml(comp.title)}</span>
-          </label>
-          <button class="checklist-del-btn" title="Удалить это задание">✕</button>
-        `;
-
-        const chk = row.querySelector('.checklist-check');
-        chk.addEventListener('click', (e) => e.stopPropagation());
-        chk.addEventListener('change', (e) => {
-          e.stopPropagation();
-          comp.completed = chk.checked;
-          row.classList.toggle('completed', comp.completed);
-          saveState();
-          updateProgress();
-          const newDone = attachedCompanions.filter(c => c.completed).length;
-          const labelEl = toggleBtn.querySelector('.accordion-label');
-          if (labelEl) labelEl.textContent = `Задания (${newDone}/${totalCompCount})`;
-          toggleBtn.classList.toggle('all-done', newDone === totalCompCount);
-
-          if (window.SyncEngine) {
-            window.SyncEngine.broadcastToggle({
-              itemId: comp.id,
-              completed: comp.completed,
-              isCompanion: true,
-              parentId: item.id,
-              dateKey: dateKey,
-              isBacklog: isBacklog
-            });
-          }
-        });
-
-        row.querySelector('.checklist-del-btn').addEventListener('click', (e) => {
-          e.stopPropagation();
-          if (confirm(`Удалить задание «${comp.title}»?`)) {
-            if (isBacklog) {
-              const cIdx = state.backlog.indexOf(comp);
-              if (cIdx !== -1) state.backlog.splice(cIdx, 1);
-            } else {
-              const p = findPeriodByDate(dateKey);
-              if (p && p.days[dateKey]) {
-                const cIdx = p.days[dateKey].items.indexOf(comp);
-                if (cIdx !== -1) p.days[dateKey].items.splice(cIdx, 1);
-              }
-            }
-            saveState();
-            renderCalendar();
-            renderBacklog();
-            if (window.SyncEngine) {
-              window.SyncEngine.broadcastDelete({
-                itemId: comp.id,
-                dateKey: dateKey,
-                isBacklog: isBacklog
-              });
-            }
-          }
-        });
-
-        checklistEl.appendChild(row);
-      });
-
-      toggleBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const isOpen = checklistEl.style.display !== 'none';
-        checklistEl.style.display = isOpen ? 'none' : 'flex';
-        toggleBtn.classList.toggle('expanded', !isOpen);
-        const arrow = toggleBtn.querySelector('.accordion-arrow');
-        if (arrow) arrow.textContent = isOpen ? '▸' : '▾';
-        if (window.GoodNotesStylus) {
-          setTimeout(() => window.GoodNotesStylus.resizeAndLoad(), 50);
-        }
-      });
-
-      accordionEl.appendChild(toggleBtn);
-      accordionEl.appendChild(checklistEl);
-      card.appendChild(accordionEl);
-    }
-
-    // Настройка Drag-and-Drop для мыши и для планшетов (тач/стилус)
-    setupCardDragEvents(card, item, dateKey, index, isBacklog, attachedCompanions);
-    setupCardTouchEvents(card, item, dateKey, index, isBacklog, attachedCompanions);
-
-    return card;
+  function filtersActive() {
+    return ui.subject !== 'all' || ui.category !== 'all' || !ui.showCompanions || !!ui.query;
   }
 
-  // ==========================================================================
-  // ЧИСТЫЙ МЕХАНИЗМ DRAG-AND-DROP («НИЧЕГО ЗА СОБОЙ НЕ ОСТАВЛЯЮТ»)
-  // ==========================================================================
+  // Первичные данные: сохранённое старой версией расписание или исходное из PDF
+  function buildSeed() {
+    const items = {};
+    let periods = null;
+    try {
+      const legacy = JSON.parse(lsGet('himbiorus_schedule_state_v2') || 'null');
+      if (legacy && legacy.periods) periods = legacy.periods;
+    } catch (e) {}
+    if (!periods || countLegacyItems(periods) === 0) periods = COURSE;
 
-  function setupCardDragEvents(card, item, dateKey, index, isBacklog, attachedCompanions = []) {
-    card.addEventListener('dragstart', (e) => {
-      dragData = {
-        itemId: item.id,
-        companionIds: (attachedCompanions || []).map(c => c.id),
-        sourceDateKey: dateKey,
-        sourceIndex: index,
-        sourceIsBacklog: isBacklog
-      };
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', JSON.stringify(dragData));
-
-      setTimeout(() => {
-        card.classList.add('dragging');
-      }, 0);
-    });
-
-    card.addEventListener('dragend', () => {
-      card.classList.remove('dragging');
-      dragData = null;
-      removeDropIndicators();
-    });
-  }
-
-  // ПОЛНОЦЕННЫЙ ТАЧ-ПЕРЕНОС ДЛЯ ПЛАНШЕТОВ (IPAD / ANDROID)
-  function setupCardTouchEvents(card, item, dateKey, index, isBacklog, attachedCompanions = []) {
-    let touchStartX = 0;
-    let touchStartY = 0;
-    let isDragging = false;
-    let ghost = null;
-    let ghostOffsetX = 0;
-    let ghostOffsetY = 0;
-    let holdTimer = null;
-    let currentHoverDropzone = null;
-
-    const startTouchDrag = (touch) => {
-      if (isDragging) return;
-      isDragging = true;
-      dragData = {
-        itemId: item.id,
-        companionIds: (attachedCompanions || []).map(c => c.id),
-        sourceDateKey: dateKey,
-        sourceIndex: index,
-        sourceIsBacklog: isBacklog
-      };
-
-      if (navigator.vibrate) {
-        try { navigator.vibrate(25); } catch (err) {}
-      }
-
-      const rect = card.getBoundingClientRect();
-      ghostOffsetX = touch.clientX - rect.left;
-      ghostOffsetY = touch.clientY - rect.top;
-
-      ghost = card.cloneNode(true);
-      ghost.classList.add('touch-drag-ghost');
-      ghost.style.width = rect.width + 'px';
-      ghost.style.left = (touch.clientX - ghostOffsetX) + 'px';
-      ghost.style.top = (touch.clientY - ghostOffsetY) + 'px';
-      document.body.appendChild(ghost);
-
-      card.classList.add('touch-dragging');
+    const add = (it, date, order) => {
+      if (!it || !it.id || /[.#$\[\]\/]/.test(it.id)) return;
+      const rec = { title: it.title || 'Без названия', subject: it.subject || 'general', category: it.category || 'theory', date, order };
+      ['subtitle', 'time', 'icon', 'parentId'].forEach(k => { if (it[k]) rec[k] = it[k]; });
+      if (it.completed) rec.completed = true;
+      if (it.isCompanion) rec.isCompanion = true;
+      items[it.id] = rec;
     };
 
-    card.addEventListener('touchstart', (e) => {
-      if (e.target.closest('.card-controls, .card-check, .card-btn, .card-accordion, .accordion-toggle, .checklist-row, .checklist-check, .checklist-del-btn, .checklist-label')) {
-        return;
-      }
+    toArray(periods).forEach(p => {
+      Object.keys((p && p.days) || {}).forEach(dateKey => {
+        toArray(p.days[dateKey] && p.days[dateKey].items).forEach((it, i) => add(it, dateKey, (i + 1) * 1000));
+      });
+    });
+    try {
+      const legacy = JSON.parse(lsGet('himbiorus_schedule_state_v2') || 'null');
+      toArray(legacy && legacy.backlog).forEach((it, i) => add(it, 'backlog', (i + 1) * 1000));
+    } catch (e) {}
 
-      const touch = e.touches[0];
-      touchStartX = touch.clientX;
-      touchStartY = touch.clientY;
-      isDragging = false;
-
-      // Если нажали прямо на иконку перетаскивания '⠿' — хватаем сразу
-      if (e.target.closest('.drag-handle')) {
-        e.preventDefault();
-        startTouchDrag(touch);
-        return;
-      }
-
-      // При нажатии на тело карточки — минимальная задержка 100 мс, чтобы не мешать быстрому скроллу
-      holdTimer = setTimeout(() => {
-        startTouchDrag(touch);
-      }, 100);
-    }, { passive: false });
-
-    card.addEventListener('touchmove', (e) => {
-      const touch = e.touches[0];
-      const dist = Math.hypot(touch.clientX - touchStartX, touch.clientY - touchStartY);
-
-      if (!isDragging) {
-        if (dist > 10) {
-          clearTimeout(holdTimer);
-        }
-        return;
-      }
-
-      e.preventDefault();
-
-      if (ghost) {
-        ghost.style.left = (touch.clientX - ghostOffsetX) + 'px';
-        ghost.style.top = (touch.clientY - ghostOffsetY) + 'px';
-      }
-
-      const elemUnder = document.elementFromPoint(touch.clientX, touch.clientY);
-      const dropzone = elemUnder ? elemUnder.closest('.day-dropzone, .drawer-dropzone') : null;
-
-      if (dropzone !== currentHoverDropzone) {
-        if (currentHoverDropzone) {
-          currentHoverDropzone.classList.remove('drag-over');
-          removeDropIndicators(currentHoverDropzone);
-        }
-        currentHoverDropzone = dropzone;
-        if (currentHoverDropzone) {
-          currentHoverDropzone.classList.add('drag-over');
-        }
-      }
-
-      if (currentHoverDropzone) {
-        showDropIndicator(currentHoverDropzone, touch.clientY);
-      }
-    }, { passive: false });
-
-    const endTouchDrag = (e) => {
-      clearTimeout(holdTimer);
-
-      if (!isDragging) return;
-      isDragging = false;
-
-      if (ghost) {
-        ghost.remove();
-        ghost = null;
-      }
-      card.classList.remove('touch-dragging');
-
-      const touch = e.changedTouches ? e.changedTouches[0] : null;
-      let targetDropzone = currentHoverDropzone;
-      let clientY = touch ? touch.clientY : 0;
-
-      if (!targetDropzone && touch) {
-        const elemUnder = document.elementFromPoint(touch.clientX, touch.clientY);
-        targetDropzone = elemUnder ? elemUnder.closest('.day-dropzone, .drawer-dropzone') : null;
-      }
-
-      if (targetDropzone && dragData) {
-        const targetIndex = calculateDropIndex(targetDropzone, clientY);
-        const isTargetBacklog = targetDropzone.classList.contains('drawer-dropzone') || targetDropzone.id === 'backlog-dropzone';
-        const targetDateKey = targetDropzone.getAttribute('data-date');
-
-        moveItem(dragData, {
-          targetDateKey: targetDateKey,
-          targetIndex: targetIndex,
-          targetIsBacklog: isTargetBacklog
+    // Фото из старой версии
+    const images = {};
+    COURSE.forEach(p => {
+      try {
+        const list = JSON.parse(lsGet('himbiorus_images_' + p.id) || '[]');
+        toArray(list).forEach(img => {
+          if (!img || !img.src || !img.id) return;
+          (images[p.id] = images[p.id] || {})[img.id.replace(/[.#$\[\]\/]/g, '_')] = {
+            src: img.src, x: img.x || 40, y: img.y || 40, w: img.width || 240, h: img.height || 180, pinned: !!img.pinned, z: Date.now()
+          };
         });
-      }
+      } catch (e) {}
+    });
 
-      if (currentHoverDropzone) {
-        currentHoverDropzone.classList.remove('drag-over');
-        removeDropIndicators(currentHoverDropzone);
-        currentHoverDropzone = null;
-      }
-      removeDropIndicators();
-      dragData = null;
+    const seed = { items };
+    if (Object.keys(images).length) seed.images = images;
+    return seed;
+  }
+
+  function toArray(v) {
+    if (Array.isArray(v)) return v.filter(Boolean);
+    if (v && typeof v === 'object') return Object.values(v).filter(Boolean);
+    return [];
+  }
+
+  function countLegacyItems(periods) {
+    let n = 0;
+    toArray(periods).forEach(p => Object.values((p && p.days) || {}).forEach(d => { n += toArray(d && d.items).length; }));
+    return n;
+  }
+
+  function courseItems() {
+    const items = {};
+    COURSE.forEach(p => Object.keys(p.days).forEach(dateKey => {
+      p.days[dateKey].items.forEach((it, i) => {
+        const rec = { title: it.title, subject: it.subject, category: it.category, date: dateKey, order: (i + 1) * 1000 };
+        ['subtitle', 'time', 'icon', 'parentId'].forEach(k => { if (it[k]) rec[k] = it[k]; });
+        if (it.isCompanion) rec.isCompanion = true;
+        items[it.id] = rec;
+      });
+    }));
+    return items;
+  }
+
+  // ------------------------------------------------------------------ отрисовка
+
+  function cardHtml(it) {
+    const subject = SUBJECTS[it.subject] || SUBJECTS.general;
+    const category = CATEGORIES[it.category] || '';
+    const icon = ICONS[it.icon];
+    const typeLabel = it.isCompanion ? (it.category === 'homework' ? 'ДЗ' : 'Тест') : category;
+    return `
+      <div class="card ${it.subject || 'general'} cat-${it.category || 'theory'}${it.isCompanion ? ' is-companion' : ''}${it.completed ? ' is-done' : ''}" data-id="${escapeHtml(it.id)}">
+        <div class="card-top">
+          <span class="pill subject">${subject.label}</span>
+          <span class="pill type">${escapeHtml(typeLabel)}</span>
+          ${icon ? `<span class="pill icon" title="${icon.label}">${icon.sign}</span>` : ''}
+          ${it.time ? `<span class="card-time">${escapeHtml(it.time)}</span>` : ''}
+          <button class="card-check" type="button" role="checkbox" aria-checked="${it.completed ? 'true' : 'false'}" aria-label="Выполнено"></button>
+        </div>
+        <div class="card-title">${escapeHtml(it.title)}</div>
+        ${it.subtitle ? `<div class="card-sub">${escapeHtml(it.subtitle)}</div>` : ''}
+      </div>`;
+  }
+
+  let renderQueued = false;
+  function requestRender() {
+    if (renderQueued) return;
+    renderQueued = true;
+    let fallback = null;
+    const run = () => {
+      if (!renderQueued) return;
+      renderQueued = false;
+      clearTimeout(fallback);
+      renderBoard();
+      renderBacklog();
+      renderProgress();
     };
-
-    card.addEventListener('touchend', endTouchDrag);
-    card.addEventListener('touchcancel', endTouchDrag);
+    requestAnimationFrame(run);
+    // Кадры анимации не приходят в фоновой вкладке — дорисуем по таймеру
+    fallback = setTimeout(run, 120);
   }
 
-  function setupDropzoneEvents(dropzone, dateKey, isBacklog) {
-    dropzone.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'move';
-      dropzone.classList.add('drag-over');
+  function renderBoard() {
+    const period = currentPeriod();
+    const weeksEl = $('#weeks');
+    if (!period || !weeksEl) return;
+    if (drag.active) return; // не перерисовываем под пальцем — дорисуем после броска
 
-      // Рассчитываем позицию индикатора вставки между карточками
-      showDropIndicator(dropzone, e.clientY);
-    });
+    const byDate = itemsByDate();
+    const dates = Object.keys(period.days);
+    const weeks = [];
+    for (let i = 0; i < dates.length; i += 7) weeks.push(dates.slice(i, i + 7));
 
-    dropzone.addEventListener('dragleave', (e) => {
-      // Убираем подсветку, если курсор вышел за пределы дропзоны
-      if (!dropzone.contains(e.relatedTarget)) {
-        dropzone.classList.remove('drag-over');
-        removeDropIndicators(dropzone);
-      }
-    });
+    weeksEl.innerHTML = weeks.map(week => `
+      <div class="week">
+        ${week.map(dateKey => {
+          const day = period.days[dateKey];
+          const list = (byDate[dateKey] || []).filter(isVisible);
+          const isToday = dateKey === todayKey();
+          return `
+            <section class="day${isToday ? ' is-today' : ''}${list.length ? '' : ' is-empty'}" data-date="${dateKey}">
+              <header class="day-head">
+                <span class="day-name">${escapeHtml(day.dayName)}</span>
+                <span class="day-num">${day.dayNum}</span>
+                <span class="day-month">${escapeHtml(day.month)}</span>
+                <button class="day-add" type="button" data-add="${dateKey}" aria-label="Добавить плашку">+</button>
+              </header>
+              <div class="day-list" data-drop="${dateKey}">
+                ${list.map(cardHtml).join('')}
+              </div>
+            </section>`;
+        }).join('')}
+      </div>`).join('');
 
-    dropzone.addEventListener('drop', (e) => {
-      e.preventDefault();
-      dropzone.classList.remove('drag-over');
-
-      let transferData = dragData;
-      if (!transferData) {
-        try {
-          transferData = JSON.parse(e.dataTransfer.getData('text/plain'));
-        } catch (err) {
-          transferData = null;
-        }
-      }
-
-      if (!transferData) return;
-
-      // Вычисляем целевой индекс вставки в зависимости от положения мыши
-      const targetIndex = calculateDropIndex(dropzone, e.clientY);
-
-      // Выполняем атомарное перемещение
-      moveItem(transferData, {
-        targetDateKey: dateKey,
-        targetIndex: targetIndex,
-        targetIsBacklog: isBacklog
-      });
-
-      removeDropIndicators();
-    });
+    $('#board').classList.toggle('layers-hidden', filtersActive());
+    $('#filter-note').hidden = !filtersActive();
+    updateBoardSize();
   }
-
-  // Индикатор линии вставки
-  function showDropIndicator(dropzone, mouseY) {
-    removeDropIndicators(dropzone);
-
-    const cards = [...dropzone.querySelectorAll('.schedule-card:not(.dragging):not(.touch-dragging)')];
-    const indicator = document.createElement('div');
-    indicator.className = 'drop-indicator';
-
-    if (cards.length === 0) {
-      dropzone.appendChild(indicator);
-      return;
-    }
-
-    let inserted = false;
-    for (const card of cards) {
-      const rect = card.getBoundingClientRect();
-      const midY = rect.top + rect.height / 2;
-      if (mouseY < midY) {
-        dropzone.insertBefore(indicator, card);
-        inserted = true;
-        break;
-      }
-    }
-
-    if (!inserted) {
-      dropzone.appendChild(indicator);
-    }
-  }
-
-  function removeDropIndicators(container = document) {
-    container.querySelectorAll('.drop-indicator').forEach(el => el.remove());
-  }
-
-  function calculateDropIndex(dropzone, mouseY) {
-    const cards = [...dropzone.querySelectorAll('.schedule-card:not(.dragging):not(.touch-dragging)')];
-    for (let i = 0; i < cards.length; i++) {
-      const rect = cards[i].getBoundingClientRect();
-      const midY = rect.top + rect.height / 2;
-      if (mouseY < midY) {
-        return parseInt(cards[i].getAttribute('data-index'), 10);
-      }
-    }
-    return 999999; // в самый конец списка (Math.min с targetArray.length гарантирует корректную вставку)
-  }
-
-  // АТОМАРНЫЙ ПЕРЕНОС БЛОКА
-  function moveItem(source, target, isRemote = false) {
-    let sourceArray = null;
-
-    // 1. Извлекаем исходный список
-    if (source.sourceIsBacklog) {
-      sourceArray = state.backlog;
-    } else {
-      const period = findPeriodByDate(source.sourceDateKey);
-      if (period && period.days[source.sourceDateKey]) {
-        sourceArray = period.days[source.sourceDateKey].items;
-      }
-    }
-
-    if (!sourceArray) return;
-
-    // 2. Находим основной элемент и его связанные компаньоны
-    let movedItems = [];
-    let originalIndices = [];
-    if (sourceArray) {
-      const pIdx = source.itemId ? sourceArray.findIndex(it => it.id === source.itemId) : -1;
-      if (pIdx !== -1) {
-        originalIndices.push(pIdx);
-        movedItems.push(sourceArray.splice(pIdx, 1)[0]);
-      } else if (!source.itemId && source.sourceIndex >= 0 && source.sourceIndex < sourceArray.length) {
-        originalIndices.push(source.sourceIndex);
-        movedItems.push(sourceArray.splice(source.sourceIndex, 1)[0]);
-      }
-    }
-
-    // Если в sourceArray не найден, но itemId передан — ищем глобально по всем дням и бэклогу
-    if (movedItems.length === 0 && source.itemId) {
-      for (const p of state.periods) {
-        for (const dKey of Object.keys(p.days || {})) {
-          const items = p.days[dKey].items || [];
-          const idx = items.findIndex(it => it.id === source.itemId);
-          if (idx !== -1) {
-            sourceArray = items;
-            originalIndices.push(idx);
-            movedItems.push(items.splice(idx, 1)[0]);
-            break;
-          }
-        }
-        if (movedItems.length > 0) break;
-      }
-      if (movedItems.length === 0 && state.backlog) {
-        const bIdx = state.backlog.findIndex(it => it.id === source.itemId);
-        if (bIdx !== -1) {
-          sourceArray = state.backlog;
-          originalIndices.push(bIdx);
-          movedItems.push(state.backlog.splice(bIdx, 1)[0]);
-        }
-      }
-    }
-
-    if (movedItems.length === 0) return;
-
-    // Извлекаем также сопутствующие компаньоны, если перемещался родительский блок
-    if (source.companionIds && source.companionIds.length > 0) {
-      source.companionIds.forEach(cId => {
-        const cIdx = sourceArray.findIndex(it => it.id === cId);
-        if (cIdx !== -1) {
-          originalIndices.push(cIdx);
-          movedItems.push(sourceArray.splice(cIdx, 1)[0]);
-        }
-      });
-    }
-
-    // 3. Извлекаем целевой список
-    let targetArray = null;
-    if (target.targetIsBacklog) {
-      targetArray = state.backlog;
-    } else {
-      const period = findPeriodByDate(target.targetDateKey);
-      if (period && period.days[target.targetDateKey]) {
-        targetArray = period.days[target.targetDateKey].items;
-      }
-    }
-
-    if (!targetArray) {
-      // Откатываем назад, если цель не найдена
-      sourceArray.push(...movedItems);
-      return;
-    }
-
-    // 4. Вычисляем точный индекс вставки
-    let targetIndex = target.targetIndex;
-    // Если перемещение внутри одного и того же списка, компенсируем смещение от удаленных элементов
-    if (sourceArray === targetArray && targetIndex < 999999) {
-      const removedBeforeTarget = originalIndices.filter(idx => idx < targetIndex).length;
-      targetIndex = Math.max(0, targetIndex - removedBeforeTarget);
-    }
-
-    const insertIdx = Math.min(Math.max(0, targetIndex), targetArray.length);
-    targetArray.splice(insertIdx, 0, ...movedItems);
-
-    // 5. Сохраняем состояние и перерисовываем
-    saveState();
-    renderCalendar();
-    renderBacklog();
-    updateProgress();
-
-    if (!isRemote && window.SyncEngine) {
-      window.SyncEngine.broadcastMove(source, target);
-    }
-  }
-
-  function findPeriodByDate(dateKey) {
-    if (!dateKey) return null;
-    return state.periods.find(p => p.days && p.days[dateKey] !== undefined);
-  }
-
-  // ==========================================
-  // БОКОВАЯ ПАНЕЛЬ БЭКЛОГА (ОТЛОЖЕННЫЕ ЗАДАЧИ)
-  // ==========================================
 
   function renderBacklog() {
-    const dropzone = document.getElementById('backlog-dropzone');
-    const badge = document.getElementById('backlog-badge');
-    if (!dropzone) return;
-
-    if (badge) {
-      badge.textContent = state.backlog.length;
-      badge.style.display = state.backlog.length > 0 ? 'inline-block' : 'none';
-    }
-
-    const mobBadge = document.getElementById('mob-backlog-badge');
-    if (mobBadge) {
-      mobBadge.style.display = state.backlog.length > 0 ? 'block' : 'none';
-    }
-
-    dropzone.innerHTML = '';
-    dropzone.setAttribute('data-is-backlog', 'true');
-    setupDropzoneEvents(dropzone, null, true);
-
-    if (state.backlog.length === 0) {
-      dropzone.innerHTML = `
-        <div class="empty-backlog-notice">
-          Перетащите сюда любой урок или тест, чтобы отложить его без привязки к конкретному дню.
-        </div>
-      `;
-      return;
-    }
-
-    // Отображаем каждую задачу (включая ДЗ и тесты) как отдельный независимый блок
-    state.backlog.forEach((item) => {
-      const realIndex = state.backlog.indexOf(item);
-      const card = createCardElement(item, null, realIndex, true);
-      dropzone.appendChild(card);
+    const listEl = $('#backlog-list');
+    if (!listEl) return;
+    const list = (itemsByDate().backlog || []);
+    listEl.innerHTML = list.length
+      ? list.map(cardHtml).join('')
+      : '<p class="empty-hint">Перетащите сюда плашку, чтобы отложить её.</p>';
+    $$('[data-backlog-count]').forEach(el => {
+      el.textContent = list.length;
+      el.hidden = list.length === 0;
     });
   }
 
-  // ==========================================
-  // УДАЛЕНИЕ И РЕДАКТИРОВАНИЕ
-  // ==========================================
+  function renderProgress() {
+    const stats = { all: [0, 0], bio: [0, 0], chem: [0, 0], rus: [0, 0] };
+    allItems().forEach(it => {
+      if (it.category === 'payment') return;
+      stats.all[1]++; if (it.completed) stats.all[0]++;
+      if (stats[it.subject]) { stats[it.subject][1]++; if (it.completed) stats[it.subject][0]++; }
+    });
+    Object.keys(stats).forEach(key => {
+      const [done, total] = stats[key];
+      const pct = total ? Math.round(done / total * 100) : 0;
+      $$(`[data-progress="${key}"]`).forEach(el => { el.textContent = key === 'all' ? `${pct}%` : `${done}/${total}`; });
+      $$(`[data-bar="${key}"]`).forEach(el => { el.style.width = pct + '%'; });
+    });
+    const [done, total] = stats.all;
+    $$('[data-progress-count]').forEach(el => { el.textContent = `${done} из ${total}`; });
+  }
 
-  function deleteItem(dateKey, index, isBacklog, itemId, isRemote = false) {
-    let sourceArray = null;
-    if (isBacklog) {
-      sourceArray = state.backlog;
-    } else if (dateKey) {
-      const period = findPeriodByDate(dateKey);
-      if (period && period.days[dateKey]) {
-        sourceArray = period.days[dateKey].items;
+  function renderPeriods() {
+    const tabs = $('#period-tabs');
+    tabs.innerHTML = COURSE.map((p, i) => `
+      <button class="period-tab${i === ui.periodIndex ? ' is-active' : ''}" type="button" data-period="${i}">
+        <span class="period-num">${String(i + 1).padStart(2, '0')}</span>
+        <span class="period-name">${escapeHtml(p.name)}</span>
+      </button>`).join('');
+    const p = currentPeriod();
+    $('#period-title').textContent = p ? p.name : '';
+    $('#period-counter').textContent = `Период ${ui.periodIndex + 1} из ${COURSE.length}`;
+    const active = tabs.querySelector('.is-active');
+    if (active) active.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
+  }
+
+  function selectPeriod(index, animate) {
+    if (index < 0 || index >= COURSE.length) return;
+    const changed = index !== ui.periodIndex;
+    ui.periodIndex = index;
+    lsSet('hb_period', String(index));
+    renderPeriods();
+    renderBoard();
+    if (changed) {
+      document.dispatchEvent(new CustomEvent('hb:period', { detail: { periodId: currentPeriod().id } }));
+      if (animate !== false) {
+        const board = $('#board');
+        board.classList.remove('is-switching');
+        void board.offsetWidth;
+        board.classList.add('is-switching');
       }
     }
+  }
 
-    let deleted = null;
-    if (sourceArray) {
-      const pIdx = itemId ? sourceArray.findIndex(it => it.id === itemId) : index;
-      if (pIdx >= 0 && pIdx < sourceArray.length) {
-        deleted = sourceArray.splice(pIdx, 1)[0];
-      }
+  function todayKey() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
+  function defaultPeriodIndex() {
+    const saved = parseInt(lsGet('hb_period'), 10);
+    if (!isNaN(saved) && saved >= 0 && saved < COURSE.length) return saved;
+    const today = todayKey();
+    if (dayIndex[today] !== undefined) return dayIndex[today];
+    const firstDay = Object.keys(dayIndex).sort()[0];
+    return today < firstDay ? 0 : COURSE.length - 1;
+  }
+
+  // ------------------------------------------------------------------ масштаб доски
+
+  function boardHeight() {
+    const weeks = $('#weeks');
+    return weeks ? weeks.offsetHeight : 0;
+  }
+
+  function fitZoom() {
+    const viewport = $('#board-viewport');
+    const available = viewport.clientWidth;
+    return Math.max(0.2, Math.min(1.15, available / BOARD.width));
+  }
+
+  function updateBoardSize() {
+    const z = ui.zoomMode === 'fit' ? fitZoom() : ui.zoom;
+    ui.zoom = z;
+    const h = boardHeight();
+    const board = $('#board');
+    const sizer = $('#board-sizer');
+    board.style.transform = `scale(${z})`;
+    board.style.height = h + 'px';
+    sizer.style.width = Math.round(BOARD.width * z) + 'px';
+    sizer.style.height = Math.round(h * z) + 'px';
+    $('#zoom-label').textContent = Math.round(z * 100) + '%';
+    document.dispatchEvent(new CustomEvent('hb:layout', { detail: { width: BOARD.width, height: h, zoom: z } }));
+  }
+
+  function setZoom(z, anchorX, anchorY) {
+    const viewport = $('#board-viewport');
+    const sizer = $('#board-sizer');
+    const next = Math.max(0.2, Math.min(2.5, z));
+    const before = sizer.getBoundingClientRect();
+    const ax = anchorX !== undefined ? anchorX : before.left + Math.min(before.width, viewport.clientWidth) / 2;
+    const ay = anchorY !== undefined ? anchorY : Math.max(before.top, 0) + window.innerHeight / 3;
+    const bx = (ax - before.left) / ui.zoom;
+    const by = (ay - before.top) / ui.zoom;
+    ui.zoomMode = 'manual';
+    ui.zoom = next;
+    lsSet('hb_zoom', String(next));
+    updateBoardSize();
+    const after = sizer.getBoundingClientRect();
+    viewport.scrollLeft += (after.left + bx * next) - ax;
+    window.scrollBy(0, (after.top + by * next) - ay);
+  }
+
+  function setFitZoom() {
+    ui.zoomMode = 'fit';
+    lsSet('hb_zoom', 'fit');
+    updateBoardSize();
+  }
+
+  function setupZoom() {
+    const saved = lsGet('hb_zoom');
+    if (saved && saved !== 'fit' && !isNaN(parseFloat(saved))) {
+      ui.zoomMode = 'manual';
+      ui.zoom = parseFloat(saved);
     }
+    $('#zoom-in').addEventListener('click', () => setZoom(ui.zoom * 1.2));
+    $('#zoom-out').addEventListener('click', () => setZoom(ui.zoom / 1.2));
+    $('#zoom-fit').addEventListener('click', setFitZoom);
+    window.addEventListener('resize', () => { if (ui.zoomMode === 'fit') updateBoardSize(); });
 
-    // Если по dateKey не найдено, но itemId передан — ищем глобально
-    if (!deleted && itemId) {
-      for (const period of state.periods) {
-        for (const dKey of Object.keys(period.days || {})) {
-          const items = period.days[dKey].items || [];
-          const idx = items.findIndex(it => it.id === itemId);
-          if (idx !== -1) {
-            sourceArray = items;
-            deleted = items.splice(idx, 1)[0];
-            break;
-          }
+    const viewport = $('#board-viewport');
+    // Ctrl + колесо / жест трекпада — масштаб
+    viewport.addEventListener('wheel', (e) => {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      setZoom(ui.zoom * Math.exp(-e.deltaY * 0.01), e.clientX, e.clientY);
+    }, { passive: false });
+
+    // Щипок двумя пальцами — масштаб (в режиме стилуса жесты обрабатывает ink.js)
+    let pinch = null;
+    const dist = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+    viewport.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 2 && !ui.drawMode) {
+        pinch = { d: dist(e.touches), z: ui.zoom };
+      }
+    }, { passive: true });
+    viewport.addEventListener('touchmove', (e) => {
+      if (!pinch || e.touches.length !== 2) return;
+      e.preventDefault();
+      const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      setZoom(pinch.z * dist(e.touches) / pinch.d, cx, cy);
+    }, { passive: false });
+    viewport.addEventListener('touchend', (e) => { if (e.touches.length < 2) pinch = null; });
+    document.addEventListener('gesturestart', (e) => e.preventDefault());
+
+    if (window.ResizeObserver) {
+      new ResizeObserver(() => updateBoardSize()).observe($('#weeks'));
+    }
+  }
+
+  // ------------------------------------------------------------------ перетаскивание плашек
+
+  const drag = { active: false, pending: null, ghost: null, marker: null, id: null, source: null, timer: null };
+
+  function setupDragAndDrop() {
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('pointermove', onPointerMove, { passive: false });
+    document.addEventListener('pointerup', onPointerUp);
+    document.addEventListener('pointercancel', cancelDrag);
+    document.addEventListener('touchmove', (e) => { if (drag.active) e.preventDefault(); }, { passive: false });
+    document.addEventListener('contextmenu', (e) => { if (drag.active || drag.pending) e.preventDefault(); });
+  }
+
+  function onPointerDown(e) {
+    if (ui.drawMode || e.button > 0) return;
+    const card = e.target.closest('.card');
+    if (!card || e.target.closest('.card-check')) return;
+    drag.pending = { card, x: e.clientX, y: e.clientY, pointerId: e.pointerId, type: e.pointerType };
+    if (e.pointerType === 'touch') {
+      // На сенсорном экране — долгое нажатие, чтобы не мешать прокрутке
+      clearTimeout(drag.timer);
+      drag.timer = setTimeout(() => {
+        if (drag.pending && drag.pending.card === card) {
+          if (navigator.vibrate) navigator.vibrate(12);
+          startDrag(drag.pending.x, drag.pending.y);
         }
-        if (deleted) break;
-      }
-      if (!deleted && state.backlog) {
-        const bIdx = state.backlog.findIndex(it => it.id === itemId);
-        if (bIdx !== -1) {
-          sourceArray = state.backlog;
-          deleted = state.backlog.splice(bIdx, 1)[0];
-        }
-      }
-    }
-
-    if (deleted && deleted.id && sourceArray) {
-      // Удаляем также все привязанные сопутствующие блоки
-      for (let i = sourceArray.length - 1; i >= 0; i--) {
-        if (sourceArray[i].parentId === deleted.id) {
-          sourceArray.splice(i, 1);
-        }
-      }
-    }
-    saveState();
-    renderCalendar();
-    renderBacklog();
-    updateProgress();
-
-    if (!isRemote && window.SyncEngine) {
-      window.SyncEngine.broadcastDelete({ itemId, dateKey, isBacklog });
+      }, 260);
     }
   }
 
-  function openCreateModal(dateKey) {
-    state.editingItem = null;
-    state.editingTarget = { dateKey, index: -1, isBacklog: false };
-
-    document.getElementById('modal-title').textContent = 'Добавить плашку в расписание';
-    document.getElementById('modal-field-title').value = '';
-    document.getElementById('modal-field-subtitle').value = '';
-    document.getElementById('modal-field-subject').value = 'bio';
-    document.getElementById('modal-field-category').value = 'theory';
-    document.getElementById('modal-field-time').value = '16:00';
-    document.getElementById('modal-field-icon').value = 'none';
-
-    document.getElementById('block-modal-backdrop').classList.add('active');
-  }
-
-  function openEditModal(item, dateKey, index, isBacklog) {
-    state.editingItem = item;
-    state.editingTarget = { dateKey, index, isBacklog };
-
-    document.getElementById('modal-title').textContent = 'Редактировать плашку';
-    document.getElementById('modal-field-title').value = item.title || '';
-    document.getElementById('modal-field-subtitle').value = item.subtitle || '';
-    document.getElementById('modal-field-subject').value = item.subject || 'bio';
-    document.getElementById('modal-field-category').value = item.category || 'theory';
-    document.getElementById('modal-field-time').value = item.time || '';
-    document.getElementById('modal-field-icon').value = item.icon || 'none';
-
-    document.getElementById('block-modal-backdrop').classList.add('active');
-  }
-
-  function closeModal() {
-    document.getElementById('block-modal-backdrop').classList.remove('active');
-    state.editingItem = null;
-    state.editingTarget = null;
-  }
-
-  function saveModalForm() {
-    const title = document.getElementById('modal-field-title').value.trim();
-    if (!title) {
-      alert('Пожалуйста, введите название блока!');
+  function onPointerMove(e) {
+    if (drag.active) {
+      e.preventDefault();
+      moveDrag(e.clientX, e.clientY);
       return;
     }
+    const p = drag.pending;
+    if (!p || p.pointerId !== e.pointerId) return;
+    const moved = Math.hypot(e.clientX - p.x, e.clientY - p.y);
+    if (p.type === 'touch') {
+      if (moved > 10) { clearTimeout(drag.timer); drag.pending = null; }
+      else { p.x = e.clientX; p.y = e.clientY; }
+      return;
+    }
+    if (moved > 5) {
+      startDrag(p.x, p.y);
+      moveDrag(e.clientX, e.clientY);
+    }
+  }
 
-    const subtitle = document.getElementById('modal-field-subtitle').value.trim();
-    const subject = document.getElementById('modal-field-subject').value;
-    const category = document.getElementById('modal-field-category').value;
-    const time = document.getElementById('modal-field-time').value.trim() || null;
-    const iconVal = document.getElementById('modal-field-icon').value;
-    const icon = iconVal === 'none' ? null : iconVal;
+  function onPointerUp(e) {
+    clearTimeout(drag.timer);
+    if (drag.active) {
+      finishDrag(e.clientX, e.clientY);
+      return;
+    }
+    const p = drag.pending;
+    drag.pending = null;
+    if (p && !e.target.closest('.card-check') && Math.hypot(e.clientX - p.x, e.clientY - p.y) < 10) {
+      openItemModal(p.card.dataset.id);
+    }
+  }
 
-    if (state.editingItem) {
-      // Редактирование существующего
-      state.editingItem.title = title;
-      state.editingItem.subtitle = subtitle;
-      state.editingItem.subject = subject;
-      state.editingItem.category = category;
-      state.editingItem.time = time;
-      state.editingItem.icon = icon;
+  function startDrag(x, y) {
+    const card = drag.pending.card;
+    const rect = card.getBoundingClientRect();
+    drag.active = true;
+    drag.id = card.dataset.id;
+    drag.offsetX = (x - rect.left) / ui.zoom;
+    drag.offsetY = (y - rect.top) / ui.zoom;
+    drag.pending = null;
+    drag.source = card;
+    card.classList.add('is-drag-source');
 
-      if (window.SyncEngine) {
-        window.SyncEngine.broadcastUpdate({
-          item: state.editingItem,
-          dateKey: state.editingTarget ? state.editingTarget.dateKey : null,
-          isBacklog: state.editingTarget ? state.editingTarget.isBacklog : false
-        });
-      }
-    } else {
-      // Создание нового
-      const newItem = {
-        id: 'custom-' + Date.now(),
-        title,
-        subtitle,
-        subject,
-        category,
-        time,
-        icon,
-        completed: false,
-        isCompanion: false
-      };
+    const ghost = card.cloneNode(true);
+    ghost.classList.add('drag-ghost');
+    ghost.style.width = card.offsetWidth + 'px';
+    ghost.style.setProperty('--z', ui.zoom);
+    document.body.appendChild(ghost);
+    drag.ghost = ghost;
 
-      const target = state.editingTarget;
-      if (target.isBacklog) {
-        state.backlog.push(newItem);
+    drag.marker = document.createElement('div');
+    drag.marker.className = 'drop-marker';
+    document.body.classList.add('is-dragging');
+    moveDrag(x, y);
+  }
+
+  function moveDrag(x, y) {
+    const g = drag.ghost;
+    g.style.transform = `translate(${x - drag.offsetX * ui.zoom}px, ${y - drag.offsetY * ui.zoom}px) scale(${ui.zoom}) rotate(1.5deg)`;
+
+    const target = dropTargetAt(x, y);
+    $$('.is-drop-target').forEach(el => { if (el !== target) el.classList.remove('is-drop-target'); });
+    if (target) {
+      target.classList.add('is-drop-target');
+      const before = cardAfter(target, y);
+      if (before) target.insertBefore(drag.marker, before);
+      else target.appendChild(drag.marker);
+    } else if (drag.marker.parentNode) {
+      drag.marker.remove();
+    }
+    autoScroll(x, y);
+  }
+
+  function dropTargetAt(x, y) {
+    const el = document.elementFromPoint(x, y);
+    if (!el) return null;
+    const list = el.closest('[data-drop]');
+    if (list) return list;
+    const day = el.closest('.day');
+    return day ? day.querySelector('[data-drop]') : (el.closest('#backlog') ? $('#backlog-list') : null);
+  }
+
+  function cardAfter(list, y) {
+    const cards = $$('.card', list).filter(c => c !== drag.source);
+    return cards.find(c => {
+      const r = c.getBoundingClientRect();
+      return y < r.top + r.height / 2;
+    }) || null;
+  }
+
+  let scrollRaf = null;
+  function autoScroll(x, y) {
+    cancelAnimationFrame(scrollRaf);
+    const viewport = $('#board-viewport');
+    const vr = viewport.getBoundingClientRect();
+    const edge = 56;
+    let dx = 0, dy = 0;
+    if (x < vr.left + edge) dx = -14; else if (x > vr.right - edge) dx = 14;
+    if (y < edge + 40) dy = -14; else if (y > window.innerHeight - edge) dy = 14;
+    if (!dx && !dy) return;
+    scrollRaf = requestAnimationFrame(() => {
+      viewport.scrollLeft += dx;
+      window.scrollBy(0, dy);
+      if (drag.active) autoScroll(x, y);
+    });
+  }
+
+  function finishDrag(x, y) {
+    const target = dropTargetAt(x, y);
+    const id = drag.id;
+    if (target && id) {
+      const date = target.dataset.drop;
+      const before = cardAfter(target, y);
+      const siblings = (itemsByDate()[date] || []).filter(it => it.id !== id);
+      let order;
+      if (before) {
+        const idx = siblings.findIndex(it => it.id === before.dataset.id);
+        const next = siblings[idx];
+        const prev = siblings[idx - 1];
+        order = prev ? (prev.order + next.order) / 2 : next.order - 1000;
       } else {
-        const period = findPeriodByDate(target.dateKey);
-        if (period && period.days[target.dateKey]) {
-          period.days[target.dateKey].items.push(newItem);
-        }
+        const last = siblings[siblings.length - 1];
+        order = last ? last.order + 1000 : 1000;
       }
-
-      if (window.SyncEngine) {
-        window.SyncEngine.broadcastAdd({ item: newItem, dateKey: target.dateKey, isBacklog: target.isBacklog });
+      const item = Store.get(`items/${id}`);
+      if (item && (item.date !== date || item.order !== order)) {
+        Store.update({ [`items/${id}/date`]: date, [`items/${id}/order`]: order });
       }
     }
-
-    saveState();
-    closeModal();
-    renderCalendar();
-    renderBacklog();
-    updateProgress();
+    cleanupDrag();
+    requestRender();
   }
 
-  // ==========================================
-  // ОБНОВЛЕНИЕ СТАТИСТИКИ И ПРОГРЕССА
-  // ==========================================
-
-  function updateProgress() {
-    let total = 0;
-    let completed = 0;
-    let bioTotal = 0, bioDone = 0;
-    let chemTotal = 0, chemDone = 0;
-    let rusTotal = 0, rusDone = 0;
-
-    const countItem = (item) => {
-      total++;
-      if (item.completed) completed++;
-      if (item.subject === 'bio') {
-        bioTotal++;
-        if (item.completed) bioDone++;
-      } else if (item.subject === 'chem') {
-        chemTotal++;
-        if (item.completed) chemDone++;
-      } else if (item.subject === 'rus') {
-        rusTotal++;
-        if (item.completed) rusDone++;
-      }
-    };
-
-    state.periods.forEach(p => {
-      Object.values(p.days).forEach(d => {
-        d.items.forEach(countItem);
-      });
-    });
-    state.backlog.forEach(countItem);
-
-    const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
-    const bioPct = bioTotal > 0 ? Math.round((bioDone / bioTotal) * 100) : 0;
-    const chemPct = chemTotal > 0 ? Math.round((chemDone / chemTotal) * 100) : 0;
-    const rusPct = rusTotal > 0 ? Math.round((rusDone / rusTotal) * 100) : 0;
-
-    const percentEl = document.getElementById('progress-percent');
-    if (percentEl) percentEl.textContent = `${percent}%`;
-
-    const countEl = document.getElementById('progress-counts');
-    if (countEl) countEl.textContent = `${completed} из ${total} выполнено`;
-
-    const bioBar = document.getElementById('bar-bio');
-    if (bioBar) bioBar.style.width = `${(bioTotal / total) * 100}%`;
-
-    const chemBar = document.getElementById('bar-chem');
-    if (chemBar) chemBar.style.width = `${(chemTotal / total) * 100}%`;
-
-    const rusBar = document.getElementById('bar-rus');
-    if (rusBar) rusBar.style.width = `${(rusTotal / total) * 100}%`;
-
-    const statBio = document.getElementById('stat-bio');
-    if (statBio) statBio.textContent = `Био: ${bioDone}/${bioTotal} (${bioPct}%)`;
-
-    const statChem = document.getElementById('stat-chem');
-    if (statChem) statChem.textContent = `Хим: ${chemDone}/${chemTotal} (${chemPct}%)`;
-
-    const statRus = document.getElementById('stat-rus');
-    if (statRus) statRus.textContent = `Рус: ${rusDone}/${rusTotal} (${rusPct}%)`;
+  function cancelDrag() {
+    clearTimeout(drag.timer);
+    drag.pending = null;
+    if (drag.active) {
+      cleanupDrag();
+      requestRender();
+    }
   }
 
-  // ==========================================
-  // НАСТРОЙКА ОБРАБОТЧИКОВ СОБЫТИЙ
-  // ==========================================
+  function cleanupDrag() {
+    cancelAnimationFrame(scrollRaf);
+    if (drag.ghost) drag.ghost.remove();
+    if (drag.marker) drag.marker.remove();
+    if (drag.source) drag.source.classList.remove('is-drag-source');
+    $$('.is-drop-target').forEach(el => el.classList.remove('is-drop-target'));
+    document.body.classList.remove('is-dragging');
+    Object.assign(drag, { active: false, ghost: null, marker: null, id: null, source: null });
+  }
 
-  function setupEventListeners() {
-    // Навигация стрелками
-    document.getElementById('prev-period-btn')?.addEventListener('click', () => {
-      if (state.currentPeriodIndex > 0) {
-        selectPeriod(state.currentPeriodIndex - 1);
-      }
-    });
+  // ------------------------------------------------------------------ окно плашки
 
-    document.getElementById('next-period-btn')?.addEventListener('click', () => {
-      if (state.currentPeriodIndex < state.periods.length - 1) {
-        selectPeriod(state.currentPeriodIndex + 1);
-      }
-    });
+  let editingId = null;
+  let creatingDate = null;
 
-    // Переключение темной темы
-    document.getElementById('theme-toggle-btn')?.addEventListener('click', toggleTheme);
+  function fillSelect(select, options, value) {
+    select.innerHTML = Object.keys(options).map(k => `<option value="${k}"${k === value ? ' selected' : ''}>${options[k].label || options[k]}</option>`).join('');
+  }
 
-    // Тумблер сопутствующих блоков
-    document.getElementById('toggle-companions')?.addEventListener('change', (e) => {
-      state.showCompanions = e.target.checked;
-      saveState();
-      renderCalendar();
-    });
+  function openItemModal(id, dateForNew) {
+    const modal = $('#item-modal');
+    const it = id ? Store.get(`items/${id}`) : null;
+    editingId = it ? id : null;
+    creatingDate = it ? null : (dateForNew || 'backlog');
+    const form = $('#item-form');
+    form.title.value = it ? it.title || '' : '';
+    form.subtitle.value = it ? it.subtitle || '' : '';
+    form.time.value = it ? it.time || '' : '';
+    fillSelect(form.subject, SUBJECTS, it ? it.subject : (ui.subject !== 'all' ? ui.subject : 'bio'));
+    fillSelect(form.category, CATEGORIES, it ? it.category : 'theory');
+    form.icon.value = it && it.icon && ICONS[it.icon] ? it.icon : '';
+    form.completed.checked = !!(it && it.completed);
+    $('#item-modal-title').textContent = it ? 'Плашка' : 'Новая плашка';
+    $('#item-delete').hidden = !it;
+    const where = it ? it.date : creatingDate;
+    $('#item-modal-date').textContent = where === 'backlog' || !where ? 'Отложено' : formatDate(where);
+    openModal(modal);
+    if (!it) setTimeout(() => form.title.focus(), 60);
+  }
 
-    // Фильтры по предмету
-    document.querySelectorAll('.filter-group [data-subject]').forEach(chip => {
-      chip.addEventListener('click', () => {
-        state.filterSubject = chip.getAttribute('data-subject');
-        renderControls();
-        renderCalendar();
-      });
-    });
+  function formatDate(dateKey) {
+    const p = COURSE[dayIndex[dateKey]];
+    const d = p && p.days[dateKey];
+    return d ? `${d.dayName}, ${d.dayNum} ${d.month}` : dateKey;
+  }
 
-    // Фильтры по категории
-    document.querySelectorAll('.filter-group [data-category]').forEach(chip => {
-      chip.addEventListener('click', () => {
-        state.filterCategory = chip.getAttribute('data-category');
-        renderControls();
-        renderCalendar();
-      });
-    });
-
-    // Поиск
-    const searchInput = document.getElementById('search-input');
-    const searchClear = document.getElementById('search-clear');
-    if (searchInput) {
-      searchInput.addEventListener('input', (e) => {
-        state.searchQuery = e.target.value;
-        if (searchClear) {
-          searchClear.classList.toggle('visible', state.searchQuery.length > 0);
-        }
-        renderCalendar();
-      });
-    }
-
-    if (searchClear) {
-      searchClear.addEventListener('click', () => {
-        searchInput.value = '';
-        state.searchQuery = '';
-        searchClear.classList.remove('visible');
-        renderCalendar();
-      });
-    }
-
-    // Бэклог (выдвижная панель)
-    const openBacklogBtn = document.getElementById('open-backlog-btn');
-    const closeBacklogBtn = document.getElementById('close-backlog-btn');
-    const drawerOverlay = document.getElementById('drawer-overlay');
-    const drawer = document.getElementById('drawer');
-
-    const toggleDrawer = (open) => {
-      drawerOverlay?.classList.toggle('active', open);
-      drawer?.classList.toggle('active', open);
+  function saveItemFromForm(e) {
+    e.preventDefault();
+    const form = $('#item-form');
+    const title = form.title.value.trim();
+    if (!title) { form.title.focus(); return; }
+    const fields = {
+      title,
+      subtitle: form.subtitle.value.trim() || null,
+      time: form.time.value.trim() || null,
+      subject: form.subject.value,
+      category: form.category.value,
+      icon: form.icon.value || null,
+      completed: form.completed.checked || null
     };
+    if (editingId) {
+      const updates = {};
+      Object.keys(fields).forEach(k => { updates[`items/${editingId}/${k}`] = fields[k]; });
+      Store.update(updates);
+    } else {
+      const id = Store.newId('u');
+      const siblings = itemsByDate()[creatingDate] || [];
+      const last = siblings[siblings.length - 1];
+      const rec = { date: creatingDate, order: last ? last.order + 1000 : 1000 };
+      Object.keys(fields).forEach(k => { if (fields[k] !== null) rec[k] = fields[k]; });
+      Store.update({ [`items/${id}`]: rec });
+      toast('Плашка добавлена');
+    }
+    closeModal($('#item-modal'));
+  }
 
-    openBacklogBtn?.addEventListener('click', () => toggleDrawer(true));
-    closeBacklogBtn?.addEventListener('click', () => toggleDrawer(false));
-    drawerOverlay?.addEventListener('click', () => toggleDrawer(false));
+  function deleteEditingItem() {
+    if (!editingId) return;
+    const it = Store.get(`items/${editingId}`);
+    if (!confirm(`Удалить плашку «${it ? it.title : ''}»?`)) return;
+    Store.update({ [`items/${editingId}`]: null });
+    closeModal($('#item-modal'));
+    toast('Плашка удалена');
+  }
 
-    // Меню настроек
-    const settingsBtn = document.getElementById('settings-dropdown-btn');
-    const settingsMenu = document.getElementById('settings-dropdown-menu');
-    const settingsWrapper = document.getElementById('settings-dropdown-wrapper');
+  function toggleCompleted(id) {
+    const it = Store.get(`items/${id}`);
+    if (!it) return;
+    Store.update({ [`items/${id}/completed`]: it.completed ? null : true });
+  }
 
-    const toggleSettings = (forceState) => {
-      if (!settingsMenu) return;
-      const isOpen = typeof forceState === 'boolean' ? forceState : !settingsMenu.classList.contains('active');
-      settingsMenu.classList.toggle('active', isOpen);
-      settingsBtn?.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-    };
+  // ------------------------------------------------------------------ модальные окна и меню
 
-    settingsBtn?.addEventListener('click', (e) => {
+  function openModal(modal) {
+    modal.hidden = false;
+    requestAnimationFrame(() => modal.classList.add('is-open'));
+    document.body.classList.add('has-modal');
+  }
+
+  function closeModal(modal) {
+    modal.classList.remove('is-open');
+    setTimeout(() => {
+      modal.hidden = true;
+      if (!$$('.modal:not([hidden])').length) document.body.classList.remove('has-modal');
+    }, 180);
+  }
+
+  let toastTimer = null;
+  function toast(message) {
+    const el = $('#toast');
+    el.textContent = message;
+    el.classList.add('is-visible');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove('is-visible'), 2200);
+  }
+
+  function setupMenus() {
+    $$('[data-open-menu]').forEach(btn => btn.addEventListener('click', (e) => {
       e.stopPropagation();
-      toggleSettings();
-    });
-
+      const menu = $('#' + btn.dataset.openMenu);
+      const willOpen = menu.hidden;
+      $$('.menu').forEach(m => { m.hidden = true; });
+      menu.hidden = !willOpen;
+      btn.setAttribute('aria-expanded', String(willOpen));
+    }));
     document.addEventListener('click', (e) => {
-      if (settingsWrapper && !settingsWrapper.contains(e.target)) {
-        toggleSettings(false);
-      }
+      if (!e.target.closest('.menu')) $$('.menu').forEach(m => { m.hidden = true; });
     });
 
-    settingsMenu?.addEventListener('click', (e) => {
-      if (e.target.closest('.dropdown-item') && !e.target.closest('label')) {
-        toggleSettings(false);
-      }
+    $$('.modal').forEach(modal => {
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal || e.target.closest('[data-close]')) closeModal(modal);
+      });
     });
-
-    // Сброс к исходному
-    document.getElementById('reset-btn')?.addEventListener('click', resetToDefault);
-
-    // Печать / PDF
-    document.getElementById('print-btn')?.addEventListener('click', () => {
-      window.print();
-    });
-
-    // Экспорт / Импорт JSON
-    document.getElementById('export-btn')?.addEventListener('click', exportJson);
-    document.getElementById('import-file-input')?.addEventListener('change', importJson);
-    document.getElementById('modal-export-btn')?.addEventListener('click', exportJson);
-    document.getElementById('modal-import-file-input')?.addEventListener('change', importJson);
-    document.getElementById('modal-print-btn')?.addEventListener('click', () => window.print());
-    document.getElementById('modal-reset-btn')?.addEventListener('click', resetToDefault);
-
-    // Модальное окно для подключения планшета
-    const tabletBtn = document.getElementById('tablet-btn');
-    const tabletModal = document.getElementById('tablet-modal-backdrop');
-    const tabletCloseBtn = document.getElementById('tablet-modal-close-btn');
-    const tabletOkBtn = document.getElementById('tablet-modal-ok-btn');
-
-    function openTabletModal() {
-      if (!tabletModal) return;
-      tabletModal.classList.add('active');
-
-      // Получаем сетевой адрес от сервера run_planner.py
-      fetch('/network-info.json')
-        .then(res => res.json())
-        .then(data => {
-          if (data && data.url) {
-            const linkEl = document.getElementById('tablet-network-link');
-            if (linkEl) {
-              linkEl.href = data.url;
-              linkEl.textContent = data.url;
-            }
-            const qrEl = document.getElementById('tablet-qr-image');
-            if (qrEl) {
-              qrEl.src = (data.qr_svg || 'tablet_qr.svg') + '?t=' + Date.now();
-            }
-          }
-        })
-        .catch(() => {
-          // Fallback если запущено без run_planner.py
-          const fallbackUrl = window.location.href;
-          const linkEl = document.getElementById('tablet-network-link');
-          if (linkEl) {
-            linkEl.href = fallbackUrl;
-            linkEl.textContent = fallbackUrl;
-          }
-        });
-    }
-
-    function closeTabletModal() {
-      tabletModal?.classList.remove('active');
-    }
-
-    tabletBtn?.addEventListener('click', openTabletModal);
-    tabletCloseBtn?.addEventListener('click', closeTabletModal);
-    tabletOkBtn?.addEventListener('click', closeTabletModal);
-    tabletModal?.addEventListener('click', (e) => {
-      if (e.target.id === 'tablet-modal-backdrop') closeTabletModal();
-    });
-
-    // Модальное окно
-    document.getElementById('modal-close-btn')?.addEventListener('click', closeModal);
-    document.getElementById('modal-cancel-btn')?.addEventListener('click', closeModal);
-    document.getElementById('modal-save-btn')?.addEventListener('click', saveModalForm);
-    document.getElementById('block-modal-backdrop')?.addEventListener('click', (e) => {
-      if (e.target.id === 'block-modal-backdrop') closeModal();
-    });
-
-    // Горячие клавиши (Esc для закрытия окон, стрелки для перелистывания)
-    window.addEventListener('keydown', (e) => {
+    document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
-        toggleSettings(false);
-        closeModal();
-        closeTabletModal();
-        toggleDrawer(false);
-      } else if (e.key === 'ArrowLeft' && !document.querySelector('.modal-backdrop.active') && document.activeElement.tagName !== 'INPUT') {
-        document.getElementById('prev-period-btn')?.click();
-      } else if (e.key === 'ArrowRight' && !document.querySelector('.modal-backdrop.active') && document.activeElement.tagName !== 'INPUT') {
-        document.getElementById('next-period-btn')?.click();
+        $$('.modal:not([hidden])').forEach(closeModal);
+        $$('.menu').forEach(m => { m.hidden = true; });
       }
     });
   }
+
+  // ------------------------------------------------------------------ тема
+
+  function applyTheme(theme) {
+    document.documentElement.dataset.theme = theme;
+    lsSet('hb_theme', theme);
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.content = theme === 'light' ? '#f6f3ef' : '#08080a';
+    $$('[data-theme-label]').forEach(el => { el.textContent = theme === 'light' ? 'Тёмная тема' : 'Светлая тема'; });
+    document.dispatchEvent(new CustomEvent('hb:theme'));
+  }
+
+  // ------------------------------------------------------------------ синхронизация (интерфейс)
+
+  function renderSyncStatus() {
+    const peers = Store.peers();
+    const status = Store.room ? Store.status : 'local';
+    const labels = {
+      local: 'Только это устройство',
+      connecting: 'Подключение…',
+      online: peers.length ? `Онлайн · ещё ${peers.length} ${plural(peers.length, 'устройство', 'устройства', 'устройств')}` : 'Онлайн',
+      offline: 'Нет сети — изменения сохранятся'
+    };
+    $$('[data-sync-status]').forEach(el => {
+      el.dataset.state = status;
+      const text = el.querySelector('[data-sync-text]');
+      if (text) text.textContent = labels[status];
+    });
+    $$('[data-sync-peers]').forEach(el => {
+      el.textContent = peers.length ? String(peers.length + 1) : '';
+      el.hidden = !peers.length;
+    });
+
+    const modal = $('#sync-modal');
+    if (modal.hidden) return;
+    $('#sync-room-block').hidden = !Store.room;
+    $('#sync-local-block').hidden = !!Store.room;
+    if (Store.room) {
+      $('#sync-room-code').textContent = Store.room;
+      $('#sync-link').textContent = Store.shareUrl();
+      $('#sync-devices').innerHTML = [`<li class="is-self">Это устройство</li>`]
+        .concat(peers.map(p => `<li>${escapeHtml(p.device)}</li>`)).join('');
+      const pending = Store.pendingCount;
+      $('#sync-pending').textContent = pending ? `Ожидают отправки: ${pending}` : 'Все изменения сохранены в облаке';
+    }
+  }
+
+  function plural(n, one, few, many) {
+    const m10 = n % 10, m100 = n % 100;
+    if (m10 === 1 && m100 !== 11) return one;
+    if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
+    return many;
+  }
+
+  let lastQrRoom = null;
+  function renderQr() {
+    const box = $('#sync-qr');
+    if (!Store.room || lastQrRoom === Store.room) return;
+    lastQrRoom = Store.room;
+    if (typeof window.qrcode !== 'function') {
+      box.innerHTML = '<p class="empty-hint">QR недоступен офлайн</p>';
+      return;
+    }
+    const qr = window.qrcode(0, 'M');
+    qr.addData(Store.shareUrl());
+    qr.make();
+    box.innerHTML = qr.createSvgTag({ cellSize: 5, margin: 2, scalable: true });
+  }
+
+  function openSyncModal() {
+    openModal($('#sync-modal'));
+    renderSyncStatus();
+    renderQr();
+    $('#sync-firebase').value = Store.firebaseUrl();
+  }
+
+  function copyText(text, done) {
+    const fallback = () => {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); } catch (e) {}
+      ta.remove();
+      toast(done);
+    };
+    if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(() => toast(done), fallback);
+    else fallback();
+  }
+
+  function setupSync() {
+    $$('[data-open-sync]').forEach(b => b.addEventListener('click', openSyncModal));
+    $('#sync-create').addEventListener('click', async () => {
+      await Store.join(Store.generateRoomCode());
+      lastQrRoom = null;
+      renderQr();
+      renderSyncStatus();
+      toast('Комната создана — откройте ссылку на другом устройстве');
+    });
+    $('#sync-join-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const input = $('#sync-join-input');
+      let code = input.value.trim();
+      const fromLink = code.match(/(?:room|sync)=([^&\s]+)/);
+      if (fromLink) code = decodeURIComponent(fromLink[1]);
+      if (!code) return;
+      try {
+        await Store.join(code);
+        input.value = '';
+        lastQrRoom = null;
+        renderQr();
+        renderSyncStatus();
+        toast('Подключено к комнате ' + Store.room);
+      } catch (err) {
+        toast(err.message);
+      }
+    });
+    $('#sync-copy-link').addEventListener('click', () => copyText(Store.shareUrl(), 'Ссылка скопирована'));
+    $('#sync-copy-code').addEventListener('click', () => copyText(Store.room, 'Код скопирован'));
+    $('#sync-leave').addEventListener('click', () => {
+      if (!confirm('Отключить это устройство от синхронизации? Данные в облаке останутся.')) return;
+      Store.leave();
+      renderSyncStatus();
+    });
+    $('#sync-firebase-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const url = $('#sync-firebase').value.trim();
+      if (url && !/^https:\/\/[a-z0-9-]+(\.[a-z0-9-]+)*\.(firebaseio\.com|firebasedatabase\.app)$/i.test(url.replace(/\/+$/, ''))) {
+        toast('Нужна ссылка вида https://….firebaseio.com');
+        return;
+      }
+      Store.setFirebaseUrl(url);
+      toast('Сервер синхронизации сохранён');
+    });
+    setInterval(renderSyncStatus, 10000);
+  }
+
+  // ------------------------------------------------------------------ экспорт / импорт / сброс
 
   function exportJson() {
-    if (window.GoodNotesStylus) {
-      window.GoodNotesStylus.saveDrawing();
-    }
-    const drawings = window.GoodNotesStylus ? window.GoodNotesStylus.getDrawingsBackup() : {};
-    const dataStr = JSON.stringify({
-      periods: state.periods,
-      backlog: state.backlog,
-      drawings: drawings,
-      theme: localStorage.getItem(THEME_STORAGE_KEY) || 'light',
-      exportedAt: new Date().toISOString()
-    }, null, 2);
-
-    const blob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
+    const payload = {
+      app: 'himbiorus-planner',
+      version: 3,
+      exportedAt: new Date().toISOString(),
+      items: Store.get('items') || {},
+      strokes: Store.get('strokes') || {},
+      images: Store.get('images') || {}
+    };
+    const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
     const a = document.createElement('a');
-    a.href = url;
-    a.download = `himbiorus_schedule_backup_${new Date().toISOString().slice(0, 10)}.json`;
+    a.href = URL.createObjectURL(blob);
+    a.download = `himbiorus-backup-${todayKey()}.json`;
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    toast('Резервная копия скачана');
   }
 
-  function importJson(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-
+  function importJson(file) {
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = () => {
       try {
-        const parsed = JSON.parse(event.target.result);
-        const importedPeriods = normalizePeriods(parsed.periods);
-        if (importedPeriods.length > 0) {
-          state.periods = importedPeriods;
-          state.backlog = toArray(parsed.backlog);
-          if (parsed.drawings && window.GoodNotesStylus) {
-            window.GoodNotesStylus.restoreDrawingsBackup(parsed.drawings);
-          }
-          if (parsed.theme) {
-            applyTheme(parsed.theme === 'dark');
-          }
-          saveState();
-          renderCalendar();
-          renderBacklog();
-          renderPeriodsNav();
-          if (window.SyncEngine) {
-            window.SyncEngine.broadcastFullState({
-              periods: state.periods,
-              backlog: state.backlog,
-              currentPeriodIndex: state.currentPeriodIndex,
-              drawings: window.GoodNotesStylus ? window.GoodNotesStylus.getDrawingsBackup() : {}
-            });
-          }
-          alert('Расписание и рукописные заметки успешно импортированы!');
-        } else {
-          alert('Неверный формат файла!');
+        const parsed = JSON.parse(reader.result);
+        let items = parsed.items;
+        if (!items && parsed.periods) {
+          lsSet('himbiorus_schedule_state_v2', JSON.stringify(parsed));
+          items = buildSeed().items;
         }
+        if (!items || typeof items !== 'object' || !Object.keys(items).length) throw new Error('В файле нет расписания');
+        if (!confirm('Заменить текущее расписание данными из файла? Это отразится на всех подключённых устройствах.')) return;
+        Store.replaceItems(items);
+        const rest = {};
+        if (parsed.strokes && typeof parsed.strokes === 'object') rest.strokes = parsed.strokes;
+        if (parsed.images && typeof parsed.images === 'object') rest.images = parsed.images;
+        if (Object.keys(rest).length) Store.update(rest);
+        toast('Данные восстановлены');
       } catch (err) {
-        alert('Ошибка чтения файла: ' + err.message);
+        alert('Не удалось прочитать файл: ' + err.message);
       }
-      e.target.value = '';
     };
     reader.readAsText(file);
   }
 
-  // ==========================================================================
-  // МОДУЛЬ СТИЛУСА GOODNOTES (РУКОПИСНЫЙ ВВОД, ЗАЩИТА ОТ ЛАДОНИ, ХАЙЛАЙТЕР)
-  // ==========================================================================
-  let stylusModule = null;
-
-  function setupGoodNotesStylus() {
-    const canvas = document.getElementById('stylus-canvas');
-    const toolbar = document.getElementById('stylus-toolbar');
-    const wrapper = document.getElementById('calendar-wrapper');
-    const drawToggleBtn = document.getElementById('draw-mode-btn');
-    const mobDrawBtn = document.getElementById('mob-draw-btn');
-    if (!canvas || !wrapper) return;
-
-    const ctx = canvas.getContext('2d', { desynchronized: true, alpha: true }) || canvas.getContext('2d');
-    if (!ctx) return;
-    let isDrawingMode = false;
-    let isDrawing = false;
-    let isPanning = false;
-    let panStartY = 0;
-    let panStartX = 0;
-    let currentTool = 'pen'; // 'pen' | 'highlighter' | 'eraser' | 'pan'
-    let currentColor = '#10b981';
-    let currentSize = 2;
-    let palmRejectionOnlyPen = false; // Защита от ладони: принудительно true только при явном включении!
-    let lastX = 0;
-    let lastY = 0;
-    let lastMidX = 0;
-    let lastMidY = 0;
-    let hasMoved = false;
-    let didDrawInStroke = false;
-    let currentStrokeBeforeSnap = null;
-    let activeTouches = new Map();
-    let undoStack = [];
-    let redoStack = [];
-    const MAX_UNDO = 15;
-    let saveTimeout = null;
-    let resizeObserver = null;
-    let isPenActive = false;
-    let penInactiveTimer = null;
-    let toastTimer = null;
-    let currentStrokePoints = [];
-    let pendingRemoteStrokes = [];
-    let currentStrokeId = null;
-    let lastStreamTime = 0;
-    let streamedPointIndex = 0;
-    let activeRemoteStrokes = new Map();
-    let recentlyFinishedStrokes = new Set();
-    let hasSavedEraseUndo = false;
-
-    let touchGesture = {
-      startTime: 0,
-      maxCount: 0,
-      hasMoved: false,
-      startPoints: new Map()
-    };
-
-    let vectorStrokes = [];
-    let undoVectorStack = [];
-    let redoVectorStack = [];
-    let pressureSensitivity = true;
-
-    function getPeriodKey() {
-      const p = state.periods[state.currentPeriodIndex];
-      return p ? `himbiorus_notes_${p.id}` : 'himbiorus_notes_default';
-    }
-
-    function getVectorKey() {
-      const p = state.periods[state.currentPeriodIndex];
-      return p ? `himbiorus_vector_strokes_${p.id}` : 'himbiorus_vector_strokes_default';
-    }
-
-    function saveVectorStrokes() {
-      try {
-        localStorage.setItem(getVectorKey(), JSON.stringify(vectorStrokes));
-      } catch (e) {}
-    }
-
-    function loadVectorStrokes() {
-      try {
-        const saved = localStorage.getItem(getVectorKey());
-        vectorStrokes = saved ? JSON.parse(saved) : [];
-      } catch (e) {
-        vectorStrokes = [];
-      }
-    }
-
-    function distToSegment(px, py, x1, y1, x2, y2) {
-      const dx = x2 - x1;
-      const dy = y2 - y1;
-      const lenSq = dx * dx + dy * dy;
-      if (lenSq === 0) return Math.hypot(px - x1, py - y1);
-      let t = ((px - x1) * dx + (py - y1) * dy) / lenSq;
-      t = Math.max(0, Math.min(1, t));
-      return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
-    }
-
-    function renderSingleVectorStroke(st, targetCtx = ctx) {
-      if (!st || !st.points || st.points.length === 0) return;
-      const pts = st.points;
-      const prevTool = currentTool;
-      const prevColor = currentColor;
-      const prevSize = currentSize;
-
-      currentTool = st.tool || 'pen';
-      currentColor = st.color || '#10b981';
-      currentSize = st.size || 3;
-
-      let lx = pts[0][0], ly = pts[0][1], lp = pts[0][2] || 0.5;
-      let lmx = lx, lmy = ly;
-
-      applyToolStyles(lp, targetCtx);
-      targetCtx.beginPath();
-      targetCtx.arc(lx, ly, (targetCtx.lineWidth || currentSize) / 2, 0, Math.PI * 2);
-      targetCtx.fillStyle = targetCtx.strokeStyle;
-      targetCtx.fill();
-
-      for (let i = 1; i < pts.length; i++) {
-        const x = pts[i][0], y = pts[i][1], p = pts[i][2] || 0.5;
-        const mx = (lx + x) / 2;
-        const my = (ly + y) / 2;
-        applyToolStyles(p, targetCtx);
-        targetCtx.beginPath();
-        targetCtx.moveTo(lmx, lmy);
-        targetCtx.quadraticCurveTo(lx, ly, mx, my);
-        targetCtx.stroke();
-        lmx = mx; lmy = my;
-        lx = x; ly = y;
-      }
-      if (pts.length > 1) {
-        targetCtx.beginPath();
-        targetCtx.moveTo(lmx, lmy);
-        targetCtx.lineTo(lx, ly);
-        targetCtx.stroke();
-      }
-
-      currentTool = prevTool;
-      currentColor = prevColor;
-      currentSize = prevSize;
-    }
-
-    function redrawAllVectorStrokes() {
-      clearCanvasOnly();
-      vectorStrokes.forEach(st => {
-        renderSingleVectorStroke(st, ctx);
-      });
-      debouncedSaveDrawing();
-    }
-
-    function checkAndEraseStrokeAt(x, y) {
-      if (!vectorStrokes || vectorStrokes.length === 0) return false;
-      const hitRadius = Math.max(currentSize * 3, 16);
-      let erasedAny = false;
-      const hitIds = new Set();
-
-      for (let sIdx = vectorStrokes.length - 1; sIdx >= 0; sIdx--) {
-        const st = vectorStrokes[sIdx];
-        if (!st || !st.points || st.points.length === 0) continue;
-        if (st.tool === 'eraser') continue;
-        const pts = st.points;
-        const threshold = hitRadius + (st.size || 2) / 2;
-
-        let hit = false;
-        if (pts.length === 1) {
-          if (Math.hypot(x - pts[0][0], y - pts[0][1]) <= threshold) {
-            hit = true;
-          }
-        } else {
-          for (let i = 0; i < pts.length - 1; i++) {
-            const d = distToSegment(x, y, pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1]);
-            if (d <= threshold) {
-              hit = true;
-              break;
-            }
-          }
-        }
-
-        if (hit) {
-          const sid = st.id || st.strokeId;
-          if (sid) hitIds.add(sid);
-          erasedAny = true;
-        }
-      }
-
-      if (erasedAny && hitIds.size > 0) {
-        if (!hasSavedEraseUndo) {
-          saveUndo();
-          hasSavedEraseUndo = true;
-        }
-        vectorStrokes = vectorStrokes.filter(s => !hitIds.has(s.id || s.strokeId));
-        saveVectorStrokes();
-        redrawAllVectorStrokes();
-        showGestureToast('⚡ Линия стёрта');
-        if (window.SyncEngine && typeof window.SyncEngine.broadcastStrokeErase === 'function') {
-          const idsArr = Array.from(hitIds);
-          window.SyncEngine.broadcastStrokeErase({
-            strokeIds: idsArr,
-            strokeId: idsArr[0],
-            periodIndex: state.currentPeriodIndex
-          });
-        }
-        return true;
-      }
-      return false;
-    }
-
-    function hexToRgba(hex, alpha) {
-      hex = hex.replace('#', '');
-      if (hex.length === 3) {
-        hex = hex.split('').map(c => c + c).join('');
-      }
-      const num = parseInt(hex, 16);
-      return `rgba(${(num >> 16) & 255}, ${(num >> 8) & 255}, ${num & 255}, ${alpha})`;
-    }
-
-    function takeSnapshot() {
-      if (!canvas || canvas.width === 0 || canvas.height === 0) return null;
-      const off = document.createElement('canvas');
-      off.width = canvas.width;
-      off.height = canvas.height;
-      const offCtx = off.getContext('2d');
-      offCtx.drawImage(canvas, 0, 0);
-      return off;
-    }
-
-    function restoreSnapshot(snap) {
-      if (!canvas || !ctx || !snap) return;
-      const dpr = window.devicePixelRatio || 1;
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(snap, 0, 0);
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    }
-
-    function clearRedo() {
-      while (redoStack.length > 0) {
-        const discarded = redoStack.pop();
-        discarded.width = 0;
-        discarded.height = 0;
-      }
-    }
-
-    function showGestureToast(msg) {
-      let toast = document.getElementById('stylus-toast');
-      if (!toast) {
-        toast = document.createElement('div');
-        toast.id = 'stylus-toast';
-        toast.className = 'stylus-toast';
-        document.body.appendChild(toast);
-      }
-      toast.textContent = msg;
-      toast.classList.add('visible');
-      if (toastTimer) clearTimeout(toastTimer);
-      toastTimer = setTimeout(() => {
-        toast.classList.remove('visible');
-      }, 750);
-    }
-
-    function resizeCanvas(preserveContent = true) {
-      if (!canvas || !wrapper) return;
-      const containerEl = document.getElementById('calendar-container');
-      const displayWidth = Math.max(wrapper.offsetWidth, wrapper.scrollWidth, containerEl ? containerEl.scrollWidth : 0);
-      const displayHeight = Math.max(wrapper.offsetHeight, wrapper.scrollHeight, containerEl ? containerEl.scrollHeight : 0);
-      if (displayWidth === 0 || displayHeight === 0) return;
-
-      const dpr = window.devicePixelRatio || 1;
-      const targetW = Math.round(displayWidth * dpr);
-      const targetH = Math.round(displayHeight * dpr);
-
-      if (canvas.width === targetW && canvas.height === targetH) return;
-
-      let tempCanvas = null;
-      if (preserveContent && canvas.width > 0 && canvas.height > 0) {
-        tempCanvas = document.createElement('canvas');
-        tempCanvas.width = canvas.width;
-        tempCanvas.height = canvas.height;
-        const tempCtx = tempCanvas.getContext('2d');
-        tempCtx.drawImage(canvas, 0, 0);
-      }
-
-      canvas.width = targetW;
-      canvas.height = targetH;
-      canvas.style.width = displayWidth + 'px';
-      canvas.style.height = displayHeight + 'px';
-
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-      if (tempCanvas) {
-        ctx.setTransform(1, 0, 0, 1, 0, 0);
-        ctx.drawImage(tempCanvas, 0, 0);
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        tempCanvas.width = 0;
-        tempCanvas.height = 0;
-      } else {
-        loadDrawing();
-      }
-    }
-
-    function saveDrawing(immediate = false) {
-      if (!canvas || isDrawing) return;
-      const doSave = () => {
-        if (isDrawing) return;
-        try {
-          const key = getPeriodKey();
-          const dataUrl = canvas.toDataURL('image/png');
-          localStorage.setItem(key, dataUrl);
-        } catch (e) {
-          console.warn('Не удалось сохранить рисунок стилуса:', e);
-        }
-      };
-
-      if (immediate) {
-        doSave();
-      } else if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
-        window.requestIdleCallback(doSave, { timeout: 3000 });
-      } else {
-        setTimeout(doSave, 50);
-      }
-    }
-
-    function debouncedSaveDrawing() {
-      if (saveTimeout) clearTimeout(saveTimeout);
-      saveTimeout = setTimeout(() => {
-        if (!isDrawing) {
-          saveDrawing(false);
-        }
-      }, 2000);
-    }
-
-    function clearCanvasOnly() {
-      if (!canvas || !ctx) return;
-      const dpr = window.devicePixelRatio || 1;
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    }
-
-    function loadDrawing() {
-      if (!canvas || !ctx) return;
-      const key = getPeriodKey();
-      const saved = localStorage.getItem(key);
-      loadVectorStrokes();
-      clearCanvasOnly();
-      clearRedo();
-      while (undoStack.length > 0) {
-        const d = undoStack.pop();
-        d.width = 0;
-        d.height = 0;
-      }
-      undoVectorStack = [];
-      redoVectorStack = [];
-
-      if (vectorStrokes.length > 0) {
-        redrawAllVectorStrokes();
-      } else if (saved) {
-        const img = new Image();
-        img.onload = () => {
-          ctx.setTransform(1, 0, 0, 1, 0, 0);
-          ctx.drawImage(img, 0, 0);
-          const dpr = window.devicePixelRatio || 1;
-          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        };
-        img.src = saved;
-      }
-    }
-
-    function saveUndo() {
-      const snap = takeSnapshot();
-      if (snap) {
-        if (undoStack.length >= MAX_UNDO) {
-          const discarded = undoStack.shift();
-          discarded.width = 0;
-          discarded.height = 0;
-        }
-        undoStack.push(snap);
-        undoVectorStack.push(JSON.parse(JSON.stringify(vectorStrokes)));
-        if (undoVectorStack.length > MAX_UNDO) undoVectorStack.shift();
-        clearRedo();
-      }
-    }
-
-    function undo(isRemote = false) {
-      if (undoStack.length === 0) return;
-      const currentSnap = takeSnapshot();
-      const prev = undoStack.pop();
-      if (currentSnap) {
-        if (redoStack.length >= MAX_UNDO) {
-          const discarded = redoStack.shift();
-          discarded.width = 0;
-          discarded.height = 0;
-        }
-        redoStack.push(currentSnap);
-        redoVectorStack.push(JSON.parse(JSON.stringify(vectorStrokes)));
-      }
-      if (undoVectorStack.length > 0) {
-        vectorStrokes = undoVectorStack.pop();
-        saveVectorStrokes();
-      }
-      restoreSnapshot(prev);
-      debouncedSaveDrawing();
-      showGestureToast('↩️ Отмена');
-
-      if (!isRemote && window.SyncEngine) {
-        window.SyncEngine.broadcastUndo({ periodIndex: state.currentPeriodIndex });
-      }
-    }
-
-    function redo() {
-      if (redoStack.length === 0) return;
-      const currentSnap = takeSnapshot();
-      const next = redoStack.pop();
-      if (currentSnap) {
-        if (undoStack.length >= MAX_UNDO) {
-          const discarded = undoStack.shift();
-          discarded.width = 0;
-          discarded.height = 0;
-        }
-        undoStack.push(currentSnap);
-        undoVectorStack.push(JSON.parse(JSON.stringify(vectorStrokes)));
-      }
-      if (redoVectorStack.length > 0) {
-        vectorStrokes = redoVectorStack.pop();
-        saveVectorStrokes();
-      }
-      restoreSnapshot(next);
-      debouncedSaveDrawing();
-      showGestureToast('↪️ Повтор');
-    }
-
-    function updateToolCursor() {
-      if (!canvas) return;
-      canvas.classList.toggle('pan-active', currentTool === 'pan');
-      canvas.classList.toggle('stroke-eraser-active', currentTool === 'stroke-eraser');
-    }
-
-    function setDrawingMode(active) {
-      isDrawingMode = active;
-      canvas.classList.toggle('drawing-active', active);
-      wrapper.classList.toggle('drawing-mode', active);
-      canvas.style.touchAction = active ? 'none' : '';
-      wrapper.style.touchAction = active ? 'none' : '';
-      updateToolCursor();
-      if (toolbar) toolbar.style.display = active ? 'block' : 'none';
-      if (drawToggleBtn) drawToggleBtn.classList.toggle('active', active);
-      if (mobDrawBtn) mobDrawBtn.classList.toggle('active', active);
-
-      if (active) {
-        resizeCanvas(true);
-        updateCachedCoords();
-        if (toolbar) {
-          toolbar.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        }
-      } else {
-        saveDrawing(true);
-      }
-    }
-
-    function toggleDrawingMode() {
-      setDrawingMode(!isDrawingMode);
-    }
-
-    function applyToolStyles(pressure = 0.5, targetCtx = ctx) {
-      targetCtx.lineCap = 'round';
-      targetCtx.lineJoin = 'round';
-
-      let width = currentSize;
-      if (pressureSensitivity && pressure !== undefined && pressure > 0) {
-        // Динамическая чувствительность Apple Pencil / S-Pen к нажиму (0.3x - 2.2x)
-        const pNorm = Math.max(0.05, Math.min(1.0, pressure));
-        width = currentSize * (0.28 + 1.84 * pNorm);
-      } else {
-        width = currentSize;
-      }
-
-      const isDark = document.body.classList.contains('dark-mode');
-
-      if (currentTool === 'pen') {
-        targetCtx.globalCompositeOperation = 'source-over';
-        targetCtx.strokeStyle = currentColor;
-        targetCtx.lineWidth = width;
-      } else if (currentTool === 'highlighter') {
-        targetCtx.globalCompositeOperation = isDark ? 'screen' : 'multiply';
-        targetCtx.strokeStyle = currentColor.startsWith('rgba') ? currentColor : hexToRgba(currentColor, isDark ? 0.65 : 0.45);
-        targetCtx.lineWidth = Math.max(width * 3.5, 18);
-      } else if (currentTool === 'eraser' || currentTool === 'stroke-eraser') {
-        targetCtx.globalCompositeOperation = 'destination-out';
-        targetCtx.lineWidth = Math.max(width * 5, 24);
-      }
-    }
-
-    let cachedRect = null;
-    let cachedScaleX = 1;
-    let cachedScaleY = 1;
-
-    function updateCachedCoords() {
-      if (!canvas) return;
-      cachedRect = canvas.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
-      cachedScaleX = (canvas.width / dpr) / (cachedRect.width || 1);
-      cachedScaleY = (canvas.height / dpr) / (cachedRect.height || 1);
-    }
-
-    function getCanvasCoords(e) {
-      if (!cachedRect) updateCachedCoords();
-      return {
-        x: (e.clientX - cachedRect.left) * cachedScaleX,
-        y: (e.clientY - cachedRect.top) * cachedScaleY
-      };
-    }
-
-    window.addEventListener('scroll', () => { cachedRect = null; }, { passive: true });
-    window.addEventListener('resize', () => { cachedRect = null; }, { passive: true });
-
-    // Touch event listeners для Palm Rejection и мультитач-жестов GoodNotes
-    const resetTouchGesture = () => {
-      touchGesture.maxCount = 0;
-      touchGesture.hasMoved = false;
-      touchGesture.startPoints.clear();
-    };
-
-    canvas.addEventListener('touchstart', (e) => {
-      if (!isDrawingMode) return;
-      if (isPenActive) {
-        // Касания рукой при активном пере полностью блокируются
-        e.preventDefault();
-        return;
-      }
-
-      const now = Date.now();
-      if (e.touches.length === 1) {
-        touchGesture.startTime = now;
-        touchGesture.maxCount = 1;
-        touchGesture.hasMoved = false;
-        touchGesture.startPoints.clear();
-      } else {
-        touchGesture.maxCount = Math.max(touchGesture.maxCount, e.touches.length);
-      }
-
-      for (let i = 0; i < e.changedTouches.length; i++) {
-        const t = e.changedTouches[i];
-        if (!touchGesture.startPoints.has(t.identifier)) {
-          touchGesture.startPoints.set(t.identifier, { x: t.clientX, y: t.clientY });
-        }
-      }
-
-      if (e.touches.length >= 2 || (palmRejectionOnlyPen && currentTool !== 'pan')) {
-        e.preventDefault();
-      }
-    }, { passive: false });
-
-    canvas.addEventListener('touchmove', (e) => {
-      if (!isDrawingMode) return;
-      if (isPenActive) {
-        e.preventDefault();
-        return;
-      }
-
-      for (let i = 0; i < e.touches.length; i++) {
-        const t = e.touches[i];
-        const init = touchGesture.startPoints.get(t.identifier);
-        if (init) {
-          if (Math.hypot(t.clientX - init.x, t.clientY - init.y) > 12) {
-            touchGesture.hasMoved = true;
-          }
-        }
-      }
-
-      if (e.touches.length >= 2 || (palmRejectionOnlyPen && currentTool !== 'pan')) {
-        e.preventDefault();
-      }
-    }, { passive: false });
-
-    canvas.addEventListener('touchend', (e) => {
-      if (!isDrawingMode) return;
-      if (isPenActive) {
-        e.preventDefault();
-        return;
-      }
-
-      // Определение тапов 2 и 3 пальцами (GoodNotes / Procreate)
-      if (e.touches.length === 0) {
-        const duration = Date.now() - touchGesture.startTime;
-        if (!touchGesture.hasMoved && duration < 400) {
-          if (touchGesture.maxCount === 2) {
-            e.preventDefault();
-            undo();
-          } else if (touchGesture.maxCount === 3) {
-            e.preventDefault();
-            redo();
-          }
-        }
-        resetTouchGesture();
-      }
-    }, { passive: false });
-
-    canvas.addEventListener('touchcancel', resetTouchGesture);
-
-    // Pointer Events на холсте с аппаратной десинхронизацией
-    canvas.addEventListener('pointerdown', (e) => {
-      if (!isDrawingMode) return;
-      updateCachedCoords();
-
-      if (e.pointerType === 'pen') {
-        isPenActive = true;
-        if (penInactiveTimer) clearTimeout(penInactiveTimer);
-      }
-
-      if (e.pointerType === 'touch') {
-        activeTouches.set(e.pointerId, { x: e.clientX, y: e.clientY });
-        if (isPenActive || (palmRejectionOnlyPen && currentTool !== 'pan')) {
-          e.preventDefault();
-          return;
-        }
-        if (activeTouches.size >= 2) {
-          isDrawing = false;
-          e.preventDefault();
-          return;
-        }
-      }
-
-      if (currentTool === 'pan') {
-        panStartY = e.clientY;
-        panStartX = e.clientX;
-        isPanning = true;
-        e.preventDefault();
-        return;
-      }
-
-      // Жесткий Palm Rejection: при включенной защите касания рукой не рисуют
-      if (palmRejectionOnlyPen && e.pointerType === 'touch') {
-        e.preventDefault();
-        return;
-      }
-
-      if (currentTool === 'stroke-eraser') {
-        e.preventDefault();
-        try { canvas.setPointerCapture(e.pointerId); } catch(err) {}
-        document.querySelectorAll('.placed-image-item').forEach(i => i.classList.remove('selected'));
-        const coords = getCanvasCoords(e);
-        isDrawing = true;
-        hasMoved = false;
-        hasSavedEraseUndo = false;
-        checkAndEraseStrokeAt(coords.x, coords.y);
-        return;
-      }
-
-      e.preventDefault();
-      try { canvas.setPointerCapture(e.pointerId); } catch(err) {}
-      document.querySelectorAll('.placed-image-item').forEach(i => i.classList.remove('selected'));
-
-      // Фиксация слепка холста в памяти (GPU-to-GPU drawImage <0.1 мс, без зависаний toDataURL)
-      currentStrokeBeforeSnap = takeSnapshot();
-      isDrawing = true;
-      hasMoved = false;
-      didDrawInStroke = false;
-
-      const coords = getCanvasCoords(e);
-      const x = coords.x;
-      const y = coords.y;
-      const p = e.pressure || 0.5;
-
-      lastX = x;
-      lastY = y;
-      lastMidX = x;
-      lastMidY = y;
-      currentStrokePoints = [[Math.round(x * 10) / 10, Math.round(y * 10) / 10, Math.round(p * 100) / 100]];
-
-      applyToolStyles(p);
-      ctx.beginPath();
-      ctx.arc(x, y, (ctx.lineWidth || currentSize) / 2, 0, Math.PI * 2);
-      ctx.fillStyle = ctx.strokeStyle;
-      ctx.fill();
-      didDrawInStroke = true;
-
-      // Мгновенная инициация потокового вещания штриха (0 мс задержки между устройствами)
-      currentStrokeId = 'strk_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7);
-      streamedPointIndex = 0;
-      if (window.SyncEngine && typeof window.SyncEngine.broadcastStrokeChunk === 'function') {
-        window.SyncEngine.broadcastStrokeChunk({
-          strokeId: currentStrokeId,
-          periodIndex: state.currentPeriodIndex,
-          tool: currentTool,
-          color: currentColor,
-          size: currentSize,
-          points: currentStrokePoints.slice()
-        });
-        streamedPointIndex = currentStrokePoints.length;
-        lastStreamTime = Date.now();
-      }
-    });
-
-    canvas.addEventListener('pointermove', (e) => {
-      if (e.pointerType === 'touch' && activeTouches.has(e.pointerId)) {
-        const prev = activeTouches.get(e.pointerId);
-        activeTouches.set(e.pointerId, { x: e.clientX, y: e.clientY });
-        if (activeTouches.size >= 2) {
-          const dy = prev.y - e.clientY;
-          const dx = prev.x - e.clientX;
-          window.scrollBy({ top: dy, left: dx, behavior: 'auto' });
-          e.preventDefault();
-          return;
-        }
-      }
-
-      if (isPanning && currentTool === 'pan') {
-        const dy = e.clientY - panStartY;
-        const dx = e.clientX - panStartX;
-        panStartY = e.clientY;
-        panStartX = e.clientX;
-        window.scrollBy({ top: -dy, left: -dx, behavior: 'auto' });
-        e.preventDefault();
-        return;
-      }
-
-      if (!isDrawing || !isDrawingMode) return;
-      if (palmRejectionOnlyPen && e.pointerType === 'touch') {
-        e.preventDefault();
-        return;
-      }
-
-      e.preventDefault();
-
-      if (currentTool === 'stroke-eraser') {
-        const coalesced = (typeof e.getCoalescedEvents === 'function') ? e.getCoalescedEvents() : null;
-        const events = (coalesced && coalesced.length > 0) ? coalesced : [e];
-        for (let i = 0; i < events.length; i++) {
-          const ev = events[i];
-          const coords = getCanvasCoords(ev);
-          checkAndEraseStrokeAt(coords.x, coords.y);
-        }
-        return;
-      }
-
-      // Zero-latency рендеринг через getCoalescedEvents для 120/240Hz стилусов
-      const coalesced = (typeof e.getCoalescedEvents === 'function') ? e.getCoalescedEvents() : null;
-      const events = (coalesced && coalesced.length > 0) ? coalesced : [e];
-      for (let i = 0; i < events.length; i++) {
-        const ev = events[i];
-        const coords = getCanvasCoords(ev);
-        const x = coords.x;
-        const y = coords.y;
-        const p = ev.pressure || 0.5;
-
-        hasMoved = true;
-        didDrawInStroke = true;
-        currentStrokePoints.push([Math.round(x * 10) / 10, Math.round(y * 10) / 10, Math.round(p * 100) / 100]);
-        const midX = (lastX + x) / 2;
-        const midY = (lastY + y) / 2;
-
-        applyToolStyles(p);
-        ctx.beginPath();
-        ctx.moveTo(lastMidX, lastMidY);
-        ctx.quadraticCurveTo(lastX, lastY, midX, midY);
-        ctx.stroke();
-
-        lastMidX = midX;
-        lastMidY = midY;
-        lastX = x;
-        lastY = y;
-      }
-
-      // Потоковая трансляция точек во время ведения стилуса (каждые ~40мс или 5 точек)
-      if (currentStrokeId && window.SyncEngine && typeof window.SyncEngine.broadcastStrokeChunk === 'function') {
-        const now = Date.now();
-        if (now - lastStreamTime >= 40 || (currentStrokePoints.length - streamedPointIndex) >= 5) {
-          const chunk = currentStrokePoints.slice(streamedPointIndex);
-          if (chunk.length > 0) {
-            window.SyncEngine.broadcastStrokeChunk({
-              strokeId: currentStrokeId,
-              periodIndex: state.currentPeriodIndex,
-              tool: currentTool,
-              color: currentColor,
-              size: currentSize,
-              points: chunk
-            });
-            streamedPointIndex = currentStrokePoints.length;
-            lastStreamTime = now;
-          }
-        }
-      }
-    });
-
-    const finishStroke = (e) => {
-      if (e.pointerType === 'pen') {
-        if (penInactiveTimer) clearTimeout(penInactiveTimer);
-        penInactiveTimer = setTimeout(() => {
-          isPenActive = false;
-        }, 180);
-      }
-
-      if (e.pointerType === 'touch') {
-        activeTouches.delete(e.pointerId);
-      }
-      if (isPanning) {
-        isPanning = false;
-      }
-
-      if (currentTool === 'stroke-eraser') {
-        isDrawing = false;
-        hasSavedEraseUndo = false;
-        try { canvas.releasePointerCapture(e.pointerId); } catch(err) {}
-        return;
-      }
-
-      if (!isDrawing) return;
-      isDrawing = false;
-
-      if (hasMoved) {
-        applyToolStyles(e.pressure || 0.5);
-        ctx.beginPath();
-        ctx.moveTo(lastMidX, lastMidY);
-        ctx.lineTo(lastX, lastY);
-        ctx.stroke();
-      }
-
-      if (didDrawInStroke && currentStrokeBeforeSnap) {
-        if (undoStack.length >= MAX_UNDO) {
-          const discarded = undoStack.shift();
-          discarded.width = 0;
-          discarded.height = 0;
-        }
-        undoStack.push(currentStrokeBeforeSnap);
-        clearRedo();
-        currentStrokeBeforeSnap = null;
-      } else if (currentStrokeBeforeSnap) {
-        currentStrokeBeforeSnap.width = 0;
-        currentStrokeBeforeSnap.height = 0;
-        currentStrokeBeforeSnap = null;
-      }
-
-      const effectiveStrokeId = currentStrokeId || ('strk_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7));
-
-      if (didDrawInStroke && currentStrokePoints.length > 0) {
-        if (currentTool === 'pen' || currentTool === 'highlighter' || currentTool === 'eraser') {
-          const finishedStroke = {
-            id: effectiveStrokeId,
-            strokeId: effectiveStrokeId,
-            tool: currentTool,
-            color: currentColor,
-            size: currentSize,
-            points: currentStrokePoints.slice()
-          };
-          vectorStrokes.push(finishedStroke);
-          saveVectorStrokes();
-        }
-      }
-
-      if (didDrawInStroke && currentStrokePoints.length > 0 && window.SyncEngine) {
-        if (typeof window.SyncEngine.broadcastStrokeEnd === 'function' && currentStrokeId) {
-          const remainingChunk = currentStrokePoints.slice(streamedPointIndex);
-          window.SyncEngine.broadcastStrokeEnd({
-            strokeId: currentStrokeId,
-            periodIndex: state.currentPeriodIndex,
-            points: remainingChunk
-          });
-        }
-        const strokePayload = {
-          periodIndex: state.currentPeriodIndex,
-          stroke: {
-            id: effectiveStrokeId,
-            strokeId: effectiveStrokeId,
-            tool: currentTool,
-            color: currentColor,
-            size: currentSize,
-            points: currentStrokePoints
-          }
-        };
-        setTimeout(() => {
-          if (window.SyncEngine) {
-            window.SyncEngine.broadcastStroke(strokePayload);
-          }
-        }, 0);
-      }
-      currentStrokeId = null;
-      streamedPointIndex = 0;
-
-      try { canvas.releasePointerCapture(e.pointerId); } catch(err) {}
-      debouncedSaveDrawing();
-
-      if (pendingRemoteStrokes.length > 0) {
-        const queue = pendingRemoteStrokes.slice();
-        pendingRemoteStrokes = [];
-        queue.forEach(item => {
-          if (item.action === 'undo') {
-            undo(true);
-          } else if (item.action === 'clear') {
-            saveUndo();
-            clearCanvasOnly();
-            localStorage.removeItem(getPeriodKey());
-          } else if (item.action === 'chunk') {
-            drawRemoteStrokeChunk(item.data);
-          } else if (item.action === 'stroke_end') {
-            finishRemoteStroke(item.data);
-          } else if (item.stroke) {
-            drawRemoteStroke(item.stroke, item.periodIndex);
-          }
-        });
-      }
-    };
-
-    canvas.addEventListener('pointerup', finishStroke);
-    canvas.addEventListener('pointercancel', finishStroke);
-
-    // Кнопки тулбара GoodNotes
-    drawToggleBtn?.addEventListener('click', toggleDrawingMode);
-    mobDrawBtn?.addEventListener('click', toggleDrawingMode);
-    document.getElementById('stylus-close-btn')?.addEventListener('click', () => setDrawingMode(false));
-
-    // Выбор инструмента (Ручка, Маркер, Ластик, Скролл)
-    document.querySelectorAll('.tools-selection .stylus-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.tools-selection .stylus-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        currentTool = btn.getAttribute('data-tool') || 'pen';
-        updateToolCursor();
-      });
-    });
-
-    // Тумблер защиты от ладони
-    const palmBtn = document.getElementById('palm-rejection-btn');
-    palmBtn?.addEventListener('click', () => {
-      palmRejectionOnlyPen = !palmRejectionOnlyPen;
-      palmBtn.classList.toggle('active', palmRejectionOnlyPen);
-      const statusEl = palmBtn.querySelector('.palm-status');
-      if (statusEl) {
-        statusEl.textContent = palmRejectionOnlyPen ? 'Только стилус' : 'Стилус+Палец';
-      }
-    });
-
-    // Выбор цвета
-    document.querySelectorAll('.color-palette .color-dot').forEach(dot => {
-      dot.addEventListener('click', () => {
-        document.querySelectorAll('.color-palette .color-dot').forEach(d => d.classList.remove('active'));
-        dot.classList.add('active');
-        currentColor = dot.getAttribute('data-color') || '#10b981';
-      });
-    });
-
-    const customColorInput = document.getElementById('stylus-custom-color');
-    customColorInput?.addEventListener('input', (e) => {
-      currentColor = e.target.value;
-      document.querySelectorAll('.color-palette .color-dot').forEach(d => d.classList.remove('active'));
-    });
-
-    // Выбор толщины и ползунок
-    const sizeSlider = document.getElementById('stylus-size-slider') || document.getElementById('stylus-stroke-size');
-    const sizeValEl = document.getElementById('stylus-size-val');
-
-    document.querySelectorAll('.stroke-sizes .size-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.stroke-sizes .size-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        currentSize = parseInt(btn.getAttribute('data-size') || '3', 10);
-        if (sizeSlider) sizeSlider.value = currentSize;
-        if (sizeValEl) sizeValEl.textContent = currentSize + 'px';
-      });
-    });
-
-    sizeSlider?.addEventListener('input', (e) => {
-      currentSize = parseInt(e.target.value, 10);
-      if (sizeValEl) sizeValEl.textContent = currentSize + 'px';
-      document.querySelectorAll('.stroke-sizes .size-btn').forEach(btn => {
-        btn.classList.toggle('active', parseInt(btn.getAttribute('data-size') || '0', 10) === currentSize);
-      });
-    });
-
-    // Регулировка степени нажатия пера
-    const pressureBtn = document.getElementById('stylus-pressure-btn');
-    const pressureText = document.getElementById('pressure-status-text');
-    pressureBtn?.addEventListener('click', () => {
-      pressureSensitivity = !pressureSensitivity;
-      pressureBtn?.classList.toggle('active', pressureSensitivity);
-      if (pressureText) pressureText.textContent = pressureSensitivity ? 'Вкл' : 'Выкл';
-      showGestureToast(pressureSensitivity ? '✍️ Нажим пера: Включен' : '✍️ Нажим пера: Выключен');
-    });
-
-    // Undo & Redo & Clear
-    document.getElementById('stylus-undo-btn')?.addEventListener('click', () => undo(false));
-    document.getElementById('stylus-redo-btn')?.addEventListener('click', redo);
-    document.getElementById('stylus-clear-btn')?.addEventListener('click', () => {
-      if (confirm('Очистить рукописные заметки для этого периода?')) {
-        saveUndo();
-        clearCanvasOnly();
-        vectorStrokes = [];
-        saveVectorStrokes();
-        localStorage.removeItem(getPeriodKey());
-        localStorage.removeItem(getVectorKey());
-        if (window.SyncEngine) {
-          window.SyncEngine.broadcastClear({ periodIndex: state.currentPeriodIndex });
-        }
-      }
-    });
-
-    // Отрисовка векторных штрихов с других устройств
-    function drawRemoteStrokeChunk(data) {
-      if (!data || !data.points || data.points.length === 0) return;
-      if (isDrawing) {
-        pendingRemoteStrokes.push({ action: 'chunk', data });
-        return;
-      }
-      if (data.periodIndex !== state.currentPeriodIndex) return;
-
-      let st = activeRemoteStrokes.get(data.strokeId);
-      if (!st) {
-        saveUndo();
-        st = {
-          tool: data.tool || 'pen',
-          color: data.color || '#10b981',
-          size: data.size || 3,
-          points: [],
-          lastX: 0,
-          lastY: 0,
-          lastMidX: 0,
-          lastMidY: 0,
-          hasDrawnStart: false
-        };
-        activeRemoteStrokes.set(data.strokeId, st);
-      }
-
-      if (!st.points) st.points = [];
-
-      const prevTool = currentTool;
-      const prevColor = currentColor;
-      const prevSize = currentSize;
-
-      currentTool = st.tool;
-      currentColor = st.color;
-      currentSize = st.size;
-
-      const pts = data.points;
-      for (let i = 0; i < pts.length; i++) {
-        const pt = pts[i];
-        st.points.push(pt);
-        const x = pt[0], y = pt[1], p = pt[2] || 0.5;
-        applyToolStyles(p);
-
-        if (!st.hasDrawnStart) {
-          ctx.beginPath();
-          ctx.arc(x, y, (ctx.lineWidth || currentSize) / 2, 0, Math.PI * 2);
-          ctx.fillStyle = ctx.strokeStyle;
-          ctx.fill();
-          st.lastX = x;
-          st.lastY = y;
-          st.lastMidX = x;
-          st.lastMidY = y;
-          st.hasDrawnStart = true;
-        } else {
-          const midX = (st.lastX + x) / 2;
-          const midY = (st.lastY + y) / 2;
-          ctx.beginPath();
-          ctx.moveTo(st.lastMidX, st.lastMidY);
-          ctx.quadraticCurveTo(st.lastX, st.lastY, midX, midY);
-          ctx.stroke();
-          st.lastMidX = midX;
-          st.lastMidY = midY;
-          st.lastX = x;
-          st.lastY = y;
-        }
-      }
-
-      currentTool = prevTool;
-      currentColor = prevColor;
-      currentSize = prevSize;
-    }
-
-    function finishRemoteStroke(data) {
-      if (!data) return;
-      if (data.points && data.points.length > 0) {
-        drawRemoteStrokeChunk(data);
-      }
-      const st = activeRemoteStrokes.get(data.strokeId);
-      if (st && st.hasDrawnStart) {
-        const prevTool = currentTool;
-        const prevColor = currentColor;
-        const prevSize = currentSize;
-        currentTool = st.tool;
-        currentColor = st.color;
-        currentSize = st.size;
-        applyToolStyles(0.5);
-        ctx.beginPath();
-        ctx.moveTo(st.lastMidX, st.lastMidY);
-        ctx.lineTo(st.lastX, st.lastY);
-        ctx.stroke();
-        currentTool = prevTool;
-        currentColor = prevColor;
-        currentSize = prevSize;
-
-        const finishedStroke = {
-          id: data.strokeId,
-          strokeId: data.strokeId,
-          tool: st.tool,
-          color: st.color,
-          size: st.size,
-          points: (st.points || []).slice()
-        };
-        if (!vectorStrokes.some(s => (s.id || s.strokeId) === data.strokeId)) {
-          vectorStrokes.push(finishedStroke);
-          saveVectorStrokes();
-        }
-        recentlyFinishedStrokes.add(data.strokeId);
-        setTimeout(() => recentlyFinishedStrokes.delete(data.strokeId), 6000);
-      }
-      activeRemoteStrokes.delete(data.strokeId);
-      debouncedSaveDrawing();
-    }
-
-    function drawRemoteStroke(stroke, periodIndex) {
-      if (!stroke || !stroke.points || stroke.points.length === 0) return;
-      const sId = stroke.strokeId || stroke.id;
-      if (sId && (activeRemoteStrokes.has(sId) || recentlyFinishedStrokes.has(sId))) {
-        if (!vectorStrokes.some(s => (s.id || s.strokeId) === sId)) {
-          stroke.id = stroke.id || sId;
-          stroke.strokeId = stroke.strokeId || sId;
-          vectorStrokes.push(stroke);
-          saveVectorStrokes();
-        }
-        activeRemoteStrokes.delete(sId);
-        debouncedSaveDrawing();
-        return;
-      }
-      if (isDrawing) {
-        pendingRemoteStrokes.push({ stroke, periodIndex });
-        return;
-      }
-
-      if (periodIndex === state.currentPeriodIndex) {
-        saveUndo();
-
-        const prevTool = currentTool;
-        const prevColor = currentColor;
-        const prevSize = currentSize;
-
-        currentTool = stroke.tool || 'pen';
-        currentColor = stroke.color || '#10b981';
-        currentSize = stroke.size || 3;
-
-        const pts = stroke.points;
-        const p0 = pts[0];
-        applyToolStyles(p0[2] || 0.5);
-
-        ctx.beginPath();
-        ctx.arc(p0[0], p0[1], (ctx.lineWidth || currentSize) / 2, 0, Math.PI * 2);
-        ctx.fillStyle = ctx.strokeStyle;
-        ctx.fill();
-
-        if (pts.length > 1) {
-          let lx = p0[0], ly = p0[1];
-          let lmx = lx, lmy = ly;
-          for (let i = 1; i < pts.length; i++) {
-            const pt = pts[i];
-            const x = pt[0], y = pt[1], p = pt[2] || 0.5;
-            const mx = (lx + x) / 2;
-            const my = (ly + y) / 2;
-
-            applyToolStyles(p);
-            ctx.beginPath();
-            ctx.moveTo(lmx, lmy);
-            ctx.quadraticCurveTo(lx, ly, mx, my);
-            ctx.stroke();
-
-            lmx = mx;
-            lmy = my;
-            lx = x;
-            ly = y;
-          }
-          ctx.beginPath();
-          ctx.moveTo(lmx, lmy);
-          ctx.lineTo(lx, ly);
-          ctx.stroke();
-        }
-
-        currentTool = prevTool;
-        currentColor = prevColor;
-        currentSize = prevSize;
-
-        stroke.id = stroke.id || sId;
-        stroke.strokeId = stroke.strokeId || sId;
-        if (!vectorStrokes.some(s => (s.id || s.strokeId) === sId)) {
-          vectorStrokes.push(stroke);
-          saveVectorStrokes();
-        }
-
-        debouncedSaveDrawing();
-      } else {
-        updateOffscreenPeriodDrawing(periodIndex, stroke);
-      }
-    }
-
-    function updateOffscreenPeriodDrawing(periodIndex, stroke) {
-      const p = state.periods[periodIndex];
-      if (!p) return;
-      const key = `himbiorus_notes_${p.id}`;
-      const saved = localStorage.getItem(key);
-      const off = document.createElement('canvas');
-      off.width = canvas ? canvas.width : 1200;
-      off.height = canvas ? canvas.height : 800;
-      const offCtx = off.getContext('2d');
-      const dpr = window.devicePixelRatio || 1;
-
-      const renderStroke = () => {
-        offCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        offCtx.lineCap = 'round';
-        offCtx.lineJoin = 'round';
-        const isDark = document.body.classList.contains('dark-mode');
-        if (stroke.tool === 'pen') {
-          offCtx.globalCompositeOperation = 'source-over';
-          offCtx.strokeStyle = stroke.color || '#10b981';
-          offCtx.lineWidth = stroke.size || 3;
-        } else if (stroke.tool === 'highlighter') {
-          offCtx.globalCompositeOperation = isDark ? 'screen' : 'multiply';
-          offCtx.strokeStyle = stroke.color;
-          offCtx.lineWidth = Math.max((stroke.size || 3) * 3.5, 18);
-        } else if (stroke.tool === 'eraser') {
-          offCtx.globalCompositeOperation = 'destination-out';
-          offCtx.lineWidth = Math.max((stroke.size || 3) * 5, 24);
-        }
-
-        const pts = stroke.points;
-        const p0 = pts[0];
-        offCtx.beginPath();
-        offCtx.arc(p0[0], p0[1], (offCtx.lineWidth || 3) / 2, 0, Math.PI * 2);
-        offCtx.fillStyle = offCtx.strokeStyle;
-        offCtx.fill();
-
-        if (pts.length > 1) {
-          let lx = p0[0], ly = p0[1];
-          let lmx = lx, lmy = ly;
-          for (let i = 1; i < pts.length; i++) {
-            const pt = pts[i];
-            const x = pt[0], y = pt[1];
-            const mx = (lx + x) / 2;
-            const my = (ly + y) / 2;
-            offCtx.beginPath();
-            offCtx.moveTo(lmx, lmy);
-            offCtx.quadraticCurveTo(lx, ly, mx, my);
-            offCtx.stroke();
-            lmx = mx; lmy = my; lx = x; ly = y;
-          }
-          offCtx.beginPath();
-          offCtx.moveTo(lmx, lmy);
-          offCtx.lineTo(lx, ly);
-          offCtx.stroke();
-        }
-        const commitSave = () => {
-          try {
-            localStorage.setItem(key, off.toDataURL('image/png'));
-          } catch (e) {}
-          off.width = 0;
-          off.height = 0;
-        };
-        if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
-          window.requestIdleCallback(commitSave, { timeout: 3000 });
-        } else {
-          setTimeout(commitSave, 50);
-        }
-      };
-
-      if (saved) {
-        const img = new Image();
-        img.onload = () => {
-          offCtx.drawImage(img, 0, 0);
-          renderStroke();
-        };
-        img.src = saved;
-      } else {
-        renderStroke();
-      }
-    }
-
-    // Горячие клавиши для отмены и повтора (Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z)
-    window.addEventListener('keydown', (e) => {
-      if (isDrawingMode) {
-        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
-          e.preventDefault();
-          undo();
-        } else if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z'))) {
-          e.preventDefault();
-          redo();
-        }
-      }
-    });
-
-    // Слежение за изменением размера экрана и разметки с ResizeObserver
-    window.addEventListener('resize', () => {
-      resizeCanvas(true);
-    });
-
-    if (window.ResizeObserver && wrapper) {
-      resizeObserver = new ResizeObserver(() => {
-        resizeCanvas(true);
-      });
-      resizeObserver.observe(wrapper);
-    }
-
-    // Экспорт API стилуса для вызова при переключении страниц и синхронизации
-    stylusModule = {
-      saveDrawing,
-      loadDrawing,
-      resizeAndLoad: () => {
-        resizeCanvas(false);
-        loadDrawing();
-      },
-      setDrawingMode,
-      toggleDrawingMode,
-      drawRemoteStroke,
-      drawRemoteStrokeChunk,
-      finishRemoteStroke,
-      remoteUndo: (periodIndex) => {
-        if (periodIndex === state.currentPeriodIndex) {
-          if (isDrawing) {
-            pendingRemoteStrokes.push({ action: 'undo', periodIndex });
-          } else {
-            undo(true);
-          }
-        }
-      },
-      remoteClear: (periodIndex) => {
-        if (periodIndex === state.currentPeriodIndex) {
-          if (isDrawing) {
-            pendingRemoteStrokes.push({ action: 'clear', periodIndex });
-          } else {
-            saveUndo();
-            clearCanvasOnly();
-            vectorStrokes = [];
-            saveVectorStrokes();
-            localStorage.removeItem(getPeriodKey());
-            localStorage.removeItem(getVectorKey());
-          }
-        } else {
-          const p = state.periods[periodIndex];
-          if (p) {
-            localStorage.removeItem(`himbiorus_notes_${p.id}`);
-            localStorage.removeItem(`himbiorus_vector_strokes_${p.id}`);
-          }
-        }
-      },
-      remoteEraseStrokes: (strokeIds, periodIndex) => {
-        if (!Array.isArray(strokeIds) || strokeIds.length === 0) return;
-        const targetPeriod = (periodIndex !== undefined) ? periodIndex : state.currentPeriodIndex;
-        const set = new Set(strokeIds);
-        if (targetPeriod === state.currentPeriodIndex) {
-          vectorStrokes = vectorStrokes.filter(s => !set.has(s.id || s.strokeId));
-          saveVectorStrokes();
-          redrawAllVectorStrokes();
-        } else {
-          const p = state.periods[targetPeriod];
-          if (p) {
-            const key = `himbiorus_vector_strokes_${p.id}`;
-            try {
-              const saved = localStorage.getItem(key);
-              if (saved) {
-                const list = JSON.parse(saved);
-                const filtered = list.filter(s => !set.has(s.id || s.strokeId));
-                localStorage.setItem(key, JSON.stringify(filtered));
-              }
-            } catch (e) {}
-          }
-        }
-      },
-      getDrawingsBackup: () => {
-        const drawings = {};
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key && key.startsWith('himbiorus_notes_')) {
-            drawings[key] = localStorage.getItem(key);
-          }
-        }
-        return drawings;
-      },
-      restoreDrawingsBackup: (drawings) => {
-        if (!drawings) return;
-        Object.entries(drawings).forEach(([k, v]) => {
-          if (k.startsWith('himbiorus_notes_') && v) {
-            localStorage.setItem(k, v);
-          }
-        });
-        loadDrawing();
-      },
-      getVectorStrokesBackup: () => {
-        const backup = {};
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key && key.startsWith('himbiorus_vector_strokes_')) {
-            backup[key] = localStorage.getItem(key);
-          }
-        }
-        return backup;
-      },
-      restoreVectorStrokesBackup: (backup) => {
-        if (!backup) return;
-        Object.entries(backup).forEach(([k, v]) => {
-          if (k.startsWith('himbiorus_vector_strokes_') && v) {
-            localStorage.setItem(k, v);
-          }
-        });
-        loadVectorStrokes();
-        redrawAllVectorStrokes();
-      }
-    };
-    window.GoodNotesStylus = stylusModule;
-
-    // Первичная инициализация холста
-    setTimeout(() => {
-      resizeCanvas(false);
-      loadDrawing();
-    }, 100);
+  function resetSchedule() {
+    if (!confirm('Вернуть расписание к исходному виду из PDF? Перестановки, свои плашки и отметки «выполнено» будут сброшены на всех устройствах. Рисунки и фото останутся.')) return;
+    Store.replaceItems(courseItems());
+    toast('Расписание сброшено');
   }
 
-  // ==========================================================================
-  // РЕЖИМ ОТОБРАЖЕНИЯ НЕДЕЛИ (КОЛОНКИ КАК НА ПК / СПИСОК)
-  // ==========================================================================
-  let weekViewMode = localStorage.getItem('himbiorus_week_view') || 'columns';
+  // ------------------------------------------------------------------ события интерфейса
 
-  function initWeekViewMode() {
-    applyWeekViewMode(weekViewMode);
-    document.getElementById('week-view-toggle-btn')?.addEventListener('click', toggleWeekViewMode);
+  function setupControls() {
+    $('#period-tabs').addEventListener('click', (e) => {
+      const tab = e.target.closest('[data-period]');
+      if (tab) selectPeriod(parseInt(tab.dataset.period, 10));
+    });
+    $('#period-prev').addEventListener('click', () => selectPeriod(ui.periodIndex - 1));
+    $('#period-next').addEventListener('click', () => selectPeriod(ui.periodIndex + 1));
+
+    $('#subject-filters').addEventListener('click', (e) => {
+      const chip = e.target.closest('[data-subject]');
+      if (!chip) return;
+      ui.subject = chip.dataset.subject;
+      $$('[data-subject]').forEach(c => c.classList.toggle('is-active', c === chip));
+      renderBoard();
+    });
+    $('#category-filter').addEventListener('change', (e) => {
+      ui.category = e.target.value;
+      renderBoard();
+    });
+    $('#companions-toggle').addEventListener('change', (e) => {
+      ui.showCompanions = e.target.checked;
+      lsSet('hb_companions', ui.showCompanions ? '1' : '0');
+      renderBoard();
+    });
+    let searchTimer = null;
+    $('#search').addEventListener('input', (e) => {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => {
+        ui.query = e.target.value.trim();
+        $('#search-clear').hidden = !ui.query;
+        renderBoard();
+      }, 120);
+    });
+    $('#search-clear').addEventListener('click', () => {
+      $('#search').value = '';
+      ui.query = '';
+      $('#search-clear').hidden = true;
+      renderBoard();
+    });
+    $('#filter-reset').addEventListener('click', () => {
+      ui.subject = 'all'; ui.category = 'all'; ui.query = ''; ui.showCompanions = true;
+      $('#search').value = ''; $('#search-clear').hidden = true;
+      $('#category-filter').value = 'all';
+      $('#companions-toggle').checked = true;
+      $$('[data-subject]').forEach(c => c.classList.toggle('is-active', c.dataset.subject === 'all'));
+      renderBoard();
+    });
+
+    // Клики внутри доски
+    document.addEventListener('click', (e) => {
+      const check = e.target.closest('.card-check');
+      if (check) {
+        const card = check.closest('.card');
+        if (card) toggleCompleted(card.dataset.id);
+        return;
+      }
+      const add = e.target.closest('[data-add]');
+      if (add) openItemModal(null, add.dataset.add);
+    });
+
+    $('#item-form').addEventListener('submit', saveItemFromForm);
+    $('#item-delete').addEventListener('click', deleteEditingItem);
+
+    $$('[data-open-backlog]').forEach(b => b.addEventListener('click', () => {
+      renderBacklog();
+      $('#backlog').classList.add('is-open');
+      $('#backlog-scrim').hidden = false;
+    }));
+    const closeBacklog = () => {
+      $('#backlog').classList.remove('is-open');
+      $('#backlog-scrim').hidden = true;
+    };
+    $('#backlog-close').addEventListener('click', closeBacklog);
+    $('#backlog-scrim').addEventListener('click', closeBacklog);
+    $('#backlog-add').addEventListener('click', () => openItemModal(null, 'backlog'));
+
+    $$('[data-action="theme"]').forEach(b => b.addEventListener('click', () => {
+      applyTheme(document.documentElement.dataset.theme === 'light' ? 'dark' : 'light');
+    }));
+    $$('[data-action="export"]').forEach(b => b.addEventListener('click', exportJson));
+    $$('[data-action="import"]').forEach(b => b.addEventListener('click', () => $('#import-input').click()));
+    $('#import-input').addEventListener('change', (e) => {
+      if (e.target.files[0]) importJson(e.target.files[0]);
+      e.target.value = '';
+    });
+    $$('[data-action="print"]').forEach(b => b.addEventListener('click', () => window.print()));
+    $$('[data-action="reset"]').forEach(b => b.addEventListener('click', resetSchedule));
+    $$('[data-action="refresh-app"]').forEach(b => b.addEventListener('click', () => {
+      location.href = location.pathname + '?reset=1' + location.hash;
+    }));
+
+    // Клавиатура: ← → переключают периоды
+    document.addEventListener('keydown', (e) => {
+      if (e.target.closest('input, textarea, select') || document.body.classList.contains('has-modal')) return;
+      if (e.key === 'ArrowLeft') selectPeriod(ui.periodIndex - 1);
+      if (e.key === 'ArrowRight') selectPeriod(ui.periodIndex + 1);
+    });
+
+    // Проявление блоков при прокрутке
+    if ('IntersectionObserver' in window) {
+      const io = new IntersectionObserver((entries) => {
+        entries.forEach(en => { if (en.isIntersecting) { en.target.classList.add('is-in'); io.unobserve(en.target); } });
+      }, { threshold: 0.08 });
+      $$('.reveal').forEach(el => io.observe(el));
+    } else {
+      $$('.reveal').forEach(el => el.classList.add('is-in'));
+    }
   }
 
-  function toggleWeekViewMode() {
-    const next = weekViewMode === 'columns' ? 'list' : 'columns';
-    applyWeekViewMode(next);
-    showGestureToast(next === 'columns' ? '📊 Вид недели: Колонки (как на ПК)' : '📋 Вид недели: Список');
-  }
+  // ------------------------------------------------------------------ запуск
 
-  function applyWeekViewMode(mode) {
-    weekViewMode = mode || 'columns';
+  async function start() {
+    applyTheme(lsGet('hb_theme') === 'light' ? 'light' : 'dark');
+    ui.showCompanions = lsGet('hb_companions') !== '0';
+    $('#companions-toggle').checked = ui.showCompanions;
+    $('#category-filter').innerHTML = '<option value="all">Все типы</option>' +
+      Object.keys(CATEGORIES).map(k => `<option value="${k}">${CATEGORIES[k]}</option>`).join('');
+    ui.periodIndex = defaultPeriodIndex();
+
+    setupMenus();
+    setupControls();
+    setupZoom();
+    setupDragAndDrop();
+    setupSync();
+    renderPeriods();
+
+    Store.subscribe(({ paths }) => {
+      if (paths.includes('__status')) { renderSyncStatus(); return; }
+      const roots = new Set(paths.map(p => p.split('/').filter(Boolean)[0] || '/'));
+      if (roots.has('/') || roots.has('items')) requestRender();
+      if (roots.has('/') || roots.has('presence')) renderSyncStatus();
+    });
+
+    window.HB = {
+      BOARD,
+      ui,
+      store: Store,
+      currentPeriod,
+      toast,
+      setZoom,
+      updateBoardSize,
+      openModal,
+      closeModal
+    };
+    document.dispatchEvent(new CustomEvent('hb:ready'));
+
+    renderBoard();
+    window.__appBooted = true;
+    document.body.classList.add('is-loaded');
     try {
-      localStorage.setItem('himbiorus_week_view', weekViewMode);
-    } catch (e) {}
-    const wrapper = document.getElementById('calendar-wrapper');
-    if (wrapper) {
-      wrapper.classList.toggle('view-list', weekViewMode === 'list');
+      await Store.init(buildSeed);
+    } catch (err) {
+      console.error('Ошибка запуска синхронизации:', err);
+      toast('Синхронизация недоступна — работаем локально');
     }
-    const dropBtn = document.getElementById('week-view-toggle-btn');
-    if (dropBtn) {
-      dropBtn.textContent = weekViewMode === 'columns' ? '📊 Вид недели: Колонки (ПК)' : '📋 Вид недели: Список';
-    }
-    const mobBtn = document.getElementById('mob-view-toggle-btn');
-    if (mobBtn) {
-      mobBtn.textContent = weekViewMode === 'columns' ? '📊 Колонки' : '📋 Список';
-    }
-    if (window.GoodNotesStylus) {
-      setTimeout(() => window.GoodNotesStylus.resizeAndLoad(), 60);
-    }
+    requestRender();
+    renderSyncStatus();
   }
 
-  // ==========================================================================
-  // МОДУЛЬ ИНТЕРАКТИВНЫХ ФОТОГРАФИЙ (ВСТАВКА, МАСШТАБИРОВАНИЕ, РАСТЯЖЕНИЕ, СИНХРОНИЗАЦИЯ)
-  // ==========================================================================
-  let placedImages = {}; // periodId -> array of images
-
-  function getImagesKey(periodId) {
-    return `himbiorus_images_${periodId || (state.periods[state.currentPeriodIndex]?.id || 'default')}`;
-  }
-
-  function loadPlacedImagesForPeriod(periodId) {
-    const pId = periodId || (state.periods[state.currentPeriodIndex]?.id || 'default');
-    try {
-      const raw = localStorage.getItem(getImagesKey(pId));
-      const parsed = raw ? JSON.parse(raw) : [];
-      placedImages[pId] = Array.isArray(parsed) ? parsed : [];
-    } catch (e) {
-      placedImages[pId] = [];
-    }
-    renderPlacedImages(pId);
-  }
-
-  function savePlacedImagesForPeriod(periodId) {
-    const pId = periodId || (state.periods[state.currentPeriodIndex]?.id || 'default');
-    try {
-      localStorage.setItem(getImagesKey(pId), JSON.stringify(placedImages[pId] || []));
-    } catch (e) {
-      console.warn('Не удалось сохранить фото:', e);
-    }
-  }
-
-  function getAllPlacedImagesBackup() {
-    const backup = {};
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      if (k && k.startsWith('himbiorus_images_')) {
-        backup[k] = localStorage.getItem(k);
-      }
-    }
-    return backup;
-  }
-
-  function restoreAllPlacedImagesBackup(backup) {
-    if (!backup) return;
-    Object.entries(backup).forEach(([k, v]) => {
-      if (k.startsWith('himbiorus_images_') && v) {
-        localStorage.setItem(k, v);
-      }
-    });
-    const curPid = state.periods[state.currentPeriodIndex]?.id;
-    loadPlacedImagesForPeriod(curPid);
-  }
-
-  function renderPlacedImages(periodId) {
-    const pId = periodId || (state.periods[state.currentPeriodIndex]?.id || 'default');
-    const layer = document.getElementById('placed-images-layer');
-    if (!layer) return;
-    layer.innerHTML = '';
-
-    const list = Array.isArray(placedImages[pId]) ? placedImages[pId] : [];
-    list.forEach(imgObj => {
-      if (imgObj && typeof imgObj === 'object' && imgObj.id) {
-        const el = createPlacedImageElement(imgObj, pId);
-        if (el) layer.appendChild(el);
-      }
-    });
-  }
-
-  function createPlacedImageElement(imgObj, periodId) {
-    if (!imgObj || typeof imgObj !== 'object') return null;
-    const container = document.createElement('div');
-    container.className = 'placed-image-item' + (imgObj.pinned ? ' pinned' : '');
-    container.setAttribute('data-id', imgObj.id);
-    container.style.left = imgObj.x + 'px';
-    container.style.top = imgObj.y + 'px';
-    container.style.width = imgObj.width + 'px';
-    container.style.height = imgObj.height + 'px';
-
-    const img = document.createElement('img');
-    img.src = imgObj.src;
-    img.alt = 'Фото расписания';
-    img.setAttribute('draggable', 'false');
-
-    const pinBtn = document.createElement('button');
-    pinBtn.className = 'placed-image-pin';
-    pinBtn.title = imgObj.pinned ? 'Разблокировать фото' : 'Закрепить фото (рисовать поверх)';
-    pinBtn.textContent = imgObj.pinned ? '🔒' : '📌';
-    pinBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      imgObj.pinned = !imgObj.pinned;
-      container.classList.toggle('pinned', !!imgObj.pinned);
-      pinBtn.textContent = imgObj.pinned ? '🔒' : '📌';
-      pinBtn.title = imgObj.pinned ? 'Разблокировать фото' : 'Закрепить фото (рисовать поверх)';
-      savePlacedImagesForPeriod(periodId);
-      if (window.SyncEngine && typeof window.SyncEngine.broadcastImageUpdate === 'function') {
-        window.SyncEngine.broadcastImageUpdate({
-          periodId: periodId,
-          periodIndex: state.currentPeriodIndex,
-          image: { id: imgObj.id, x: imgObj.x, y: imgObj.y, width: imgObj.width, height: imgObj.height, pinned: !!imgObj.pinned }
-        });
-      }
-    });
-
-    const delBtn = document.createElement('button');
-    delBtn.className = 'placed-image-delete';
-    delBtn.title = 'Удалить фото';
-    delBtn.textContent = '✕';
-    delBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      deletePlacedImage(imgObj.id, periodId);
-    });
-
-    container.appendChild(img);
-    container.appendChild(pinBtn);
-    container.appendChild(delBtn);
-
-    // 4 маркера изменения размера и свободного растяжения
-    ['tl', 'tr', 'bl', 'br'].forEach(handleType => {
-      const h = document.createElement('div');
-      h.className = `resize-handle ${handleType}`;
-      h.setAttribute('data-handle', handleType);
-      setupResizeHandleEvents(h, container, imgObj, handleType, periodId);
-      container.appendChild(h);
-    });
-
-    setupImageDragEvents(container, imgObj, periodId);
-
-    return container;
-  }
-
-  function setupImageDragEvents(container, imgObj, periodId) {
-    let isDragging = false;
-    let startX = 0;
-    let startY = 0;
-    let initialLeft = 0;
-    let initialTop = 0;
-
-    container.addEventListener('pointerdown', (e) => {
-      if (imgObj.pinned) return;
-      if (e.target.classList.contains('resize-handle') || e.target.classList.contains('placed-image-delete') || e.target.classList.contains('placed-image-pin')) {
-        return;
-      }
-      e.preventDefault();
-      e.stopPropagation();
-      try { container.setPointerCapture(e.pointerId); } catch(err) {}
-      isDragging = true;
-      startX = e.clientX;
-      startY = e.clientY;
-      initialLeft = imgObj.x;
-      initialTop = imgObj.y;
-      document.querySelectorAll('.placed-image-item').forEach(i => i.classList.remove('selected'));
-      container.classList.add('selected');
-    });
-
-    container.addEventListener('pointermove', (e) => {
-      if (!isDragging) return;
-      e.preventDefault();
-      e.stopPropagation();
-      const dx = e.clientX - startX;
-      const dy = e.clientY - startY;
-      imgObj.x = Math.max(0, initialLeft + dx);
-      imgObj.y = Math.max(0, initialTop + dy);
-      container.style.left = imgObj.x + 'px';
-      container.style.top = imgObj.y + 'px';
-    });
-
-    const finishDrag = (e) => {
-      if (!isDragging) return;
-      isDragging = false;
-      try { container.releasePointerCapture(e.pointerId); } catch(err) {}
-      savePlacedImagesForPeriod(periodId);
-      if (window.SyncEngine && typeof window.SyncEngine.broadcastImageUpdate === 'function') {
-        window.SyncEngine.broadcastImageUpdate({
-          periodId: periodId,
-          periodIndex: state.currentPeriodIndex,
-          image: { id: imgObj.id, x: imgObj.x, y: imgObj.y, width: imgObj.width, height: imgObj.height, pinned: !!imgObj.pinned }
-        });
-      }
-    };
-
-    container.addEventListener('pointerup', finishDrag);
-    container.addEventListener('pointercancel', finishDrag);
-  }
-
-  function setupResizeHandleEvents(handle, container, imgObj, handleType, periodId) {
-    let isResizing = false;
-    let startX = 0;
-    let startY = 0;
-    let initialW = 0;
-    let initialH = 0;
-    let initialLeft = 0;
-    let initialTop = 0;
-
-    handle.addEventListener('pointerdown', (e) => {
-      if (imgObj.pinned) return;
-      e.preventDefault();
-      e.stopPropagation();
-      try { handle.setPointerCapture(e.pointerId); } catch(err) {}
-      isResizing = true;
-      startX = e.clientX;
-      startY = e.clientY;
-      initialW = imgObj.width;
-      initialH = imgObj.height;
-      initialLeft = imgObj.x;
-      initialTop = imgObj.y;
-      container.classList.add('selected');
-    });
-
-    handle.addEventListener('pointermove', (e) => {
-      if (!isResizing) return;
-      e.preventDefault();
-      e.stopPropagation();
-      const dx = e.clientX - startX;
-      const dy = e.clientY - startY;
-
-      if (handleType === 'br') {
-        imgObj.width = Math.max(60, initialW + dx);
-        imgObj.height = Math.max(40, initialH + dy);
-      } else if (handleType === 'bl') {
-        const newW = Math.max(60, initialW - dx);
-        imgObj.x = initialLeft + (initialW - newW);
-        imgObj.width = newW;
-        imgObj.height = Math.max(40, initialH + dy);
-        container.style.left = imgObj.x + 'px';
-      } else if (handleType === 'tr') {
-        const newH = Math.max(40, initialH - dy);
-        imgObj.y = initialTop + (initialH - newH);
-        imgObj.width = Math.max(60, initialW + dx);
-        imgObj.height = newH;
-        container.style.top = imgObj.y + 'px';
-      } else if (handleType === 'tl') {
-        const newW = Math.max(60, initialW - dx);
-        const newH = Math.max(40, initialH - dy);
-        imgObj.x = initialLeft + (initialW - newW);
-        imgObj.y = initialTop + (initialH - newH);
-        imgObj.width = newW;
-        imgObj.height = newH;
-        container.style.left = imgObj.x + 'px';
-        container.style.top = imgObj.y + 'px';
-      }
-
-      container.style.width = imgObj.width + 'px';
-      container.style.height = imgObj.height + 'px';
-    });
-
-    const finishResize = (e) => {
-      if (!isResizing) return;
-      isResizing = false;
-      try { handle.releasePointerCapture(e.pointerId); } catch(err) {}
-      savePlacedImagesForPeriod(periodId);
-      if (window.SyncEngine && typeof window.SyncEngine.broadcastImageUpdate === 'function') {
-        window.SyncEngine.broadcastImageUpdate({
-          periodId: periodId,
-          periodIndex: state.currentPeriodIndex,
-          image: { id: imgObj.id, x: imgObj.x, y: imgObj.y, width: imgObj.width, height: imgObj.height, pinned: !!imgObj.pinned }
-        });
-      }
-    };
-
-    handle.addEventListener('pointerup', finishResize);
-    handle.addEventListener('pointercancel', finishResize);
-  }
-
-  function handleImageUpload(file) {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const rawUrl = e.target.result;
-      const img = new Image();
-      img.onload = () => {
-        const maxDim = 800;
-        let w = img.naturalWidth || 400;
-        let h = img.naturalHeight || 300;
-        if (w > maxDim || h > maxDim) {
-          if (w > h) {
-            h = Math.round(h * (maxDim / w));
-            w = maxDim;
-          } else {
-            w = Math.round(w * (maxDim / h));
-            h = maxDim;
-          }
-        }
-        const compressCanvas = document.createElement('canvas');
-        compressCanvas.width = w;
-        compressCanvas.height = h;
-        const cCtx = compressCanvas.getContext('2d');
-        cCtx.drawImage(img, 0, 0, w, h);
-        const compressedDataUrl = compressCanvas.toDataURL('image/jpeg', 0.75);
-        compressCanvas.width = 0;
-        compressCanvas.height = 0;
-
-        const pId = state.periods[state.currentPeriodIndex]?.id || 'default';
-        const mainContent = document.querySelector('.main-content');
-        const scrollLeft = mainContent ? mainContent.scrollLeft : 0;
-        const scrollTop = window.scrollY || 0;
-
-        const displayW = Math.min(260, w);
-        const displayH = Math.round(displayW * (h / w));
-
-        const newImageObj = {
-          id: 'img_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7),
-          src: compressedDataUrl,
-          x: Math.max(30, scrollLeft + 40),
-          y: Math.max(30, Math.min(scrollTop + 60, 400)),
-          width: displayW,
-          height: displayH,
-          pinned: false
-        };
-
-        if (!placedImages[pId]) placedImages[pId] = [];
-        placedImages[pId].push(newImageObj);
-        savePlacedImagesForPeriod(pId);
-        renderPlacedImages(pId);
-
-        showGestureToast('🖼️ Фото добавлено в расписание');
-
-        if (window.SyncEngine && typeof window.SyncEngine.broadcastImageAdd === 'function') {
-          window.SyncEngine.broadcastImageAdd({
-            periodId: pId,
-            periodIndex: state.currentPeriodIndex,
-            image: newImageObj
-          });
-        }
-      };
-      img.src = rawUrl;
-    };
-    reader.readAsDataURL(file);
-  }
-
-  function deletePlacedImage(imageId, periodId) {
-    const pId = periodId || (state.periods[state.currentPeriodIndex]?.id || 'default');
-    if (!placedImages[pId]) return;
-    placedImages[pId] = placedImages[pId].filter(im => im.id !== imageId);
-    savePlacedImagesForPeriod(pId);
-    renderPlacedImages(pId);
-    showGestureToast('🗑️ Фото удалено');
-
-    if (window.SyncEngine && typeof window.SyncEngine.broadcastImageDelete === 'function') {
-      window.SyncEngine.broadcastImageDelete({
-        periodId: pId,
-        periodIndex: state.currentPeriodIndex,
-        imageId: imageId
-      });
-    }
-  }
-
-  function setupPlacedImagesModule() {
-    const curPid = state.periods[state.currentPeriodIndex]?.id;
-    loadPlacedImagesForPeriod(curPid);
-
-    const insertPhotoBtn = document.getElementById('tool-insert-photo');
-    const menuPhotoBtn = document.getElementById('menu-insert-photo-btn');
-    const photoFileInput = document.getElementById('stylus-photo-input');
-
-    insertPhotoBtn?.addEventListener('click', () => {
-      photoFileInput?.click();
-    });
-    menuPhotoBtn?.addEventListener('click', () => {
-      photoFileInput?.click();
-    });
-
-    photoFileInput?.addEventListener('change', (e) => {
-      if (e.target.files && e.target.files[0]) {
-        handleImageUpload(e.target.files[0]);
-        photoFileInput.value = '';
-      }
-    });
-
-    // Вставка из буфера обмена (Ctrl+V) для ПК
-    window.addEventListener('paste', (e) => {
-      const items = e.clipboardData?.items;
-      if (!items) return;
-      for (let i = 0; i < items.length; i++) {
-        if (items[i].type.startsWith('image/')) {
-          const file = items[i].getAsFile();
-          if (file) {
-            handleImageUpload(file);
-            break;
-          }
-        }
-      }
-    });
-
-    // Снятие выделения фото при клике вне его
-    window.addEventListener('pointerdown', (e) => {
-      if (e && e.target && typeof e.target.closest === 'function') {
-        if (!e.target.closest('.placed-image-item') && !e.target.closest('#tool-insert-photo') && !e.target.closest('#menu-insert-photo-btn')) {
-          document.querySelectorAll('.placed-image-item').forEach(i => i.classList.remove('selected'));
-        }
-      }
-    });
-  }
-
-  // ==========================================================================
-  // МОБИЛЬНАЯ НАВИГАЦИЯ И БЫСТРЫЙ ВЫБОР ДНЯ
-  // ==========================================================================
-  function setupMobileNavigation() {
-    // 1. Мобильная нижняя панель
-    document.getElementById('mob-period-btn')?.addEventListener('click', () => {
-      const tabsWrapper = document.querySelector('.periods-tabs-wrapper');
-      if (tabsWrapper) {
-        tabsWrapper.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
-      if (state.currentPeriodIndex < state.periods.length - 1) {
-        selectPeriod(state.currentPeriodIndex + 1);
-      } else {
-        selectPeriod(0);
-      }
-    });
-
-    document.getElementById('mob-theme-btn')?.addEventListener('click', toggleTheme);
-
-    document.getElementById('mob-backlog-btn')?.addEventListener('click', () => {
-      document.getElementById('open-backlog-btn')?.click();
-    });
-
-    document.getElementById('mob-tablet-btn')?.addEventListener('click', () => {
-      document.getElementById('tablet-btn')?.click();
-    });
-
-    // 2. Мобильный быстрый селектор дня (Все дни, Пн, Вт, Ср, Чт, Пт, Сб, Вс)
-    const dayChips = document.querySelectorAll('.mobile-day-selector .mob-day-chip:not(.mob-view-btn)');
-    dayChips.forEach(chip => {
-      chip.addEventListener('click', () => {
-        dayChips.forEach(c => c.classList.remove('active'));
-        chip.classList.add('active');
-
-        const selectedDay = chip.getAttribute('data-day');
-        const dayCards = document.querySelectorAll('.calendar-day-card');
-
-        if (weekViewMode === 'columns') {
-          // В режиме колонок (как на ПК) не скрываем дни, а плавно центрируем выбранный день!
-          dayCards.forEach(card => {
-            card.style.display = '';
-          });
-          if (selectedDay !== 'all') {
-            for (let i = 0; i < dayCards.length; i++) {
-              const card = dayCards[i];
-              const nameEl = card.querySelector('.day-name');
-              const dayName = (nameEl ? nameEl.textContent : '').trim().toLowerCase();
-              if (dayName.startsWith(selectedDay.toLowerCase())) {
-                card.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-                break;
-              }
-            }
-          } else {
-            const mainEl = document.querySelector('.main-content');
-            if (mainEl) mainEl.scrollTo({ left: 0, behavior: 'smooth' });
-          }
-        } else {
-          if (selectedDay === 'all') {
-            dayCards.forEach(card => {
-              card.style.display = '';
-            });
-          } else {
-            let foundFirst = false;
-            dayCards.forEach(card => {
-              const nameEl = card.querySelector('.day-name');
-              const dayName = (nameEl ? nameEl.textContent : '').trim().toLowerCase();
-              const matches = dayName.startsWith(selectedDay.toLowerCase());
-
-              card.style.display = matches ? '' : 'none';
-
-              if (matches && !foundFirst) {
-                foundFirst = true;
-                card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-              }
-            });
-          }
-        }
-
-        if (window.GoodNotesStylus) {
-          setTimeout(() => {
-            window.GoodNotesStylus.resizeAndLoad();
-          }, 100);
-        }
-      });
-    });
-
-    document.getElementById('mob-view-toggle-btn')?.addEventListener('click', toggleWeekViewMode);
-  }
-
-  // ==========================================================================
-  // МОДУЛЬ СИНХРОНИЗАЦИИ УСТРОЙСТВ В РЕАЛЬНОМ ВРЕМЕНИ (SYNC ENGINE UI & HOOKS)
-  // ==========================================================================
-  function setupRealtimeSync() {
-    if (!window.SyncEngine) return;
-
-    const syncModal = document.getElementById('sync-modal-backdrop');
-    const syncBtn = document.getElementById('sync-btn');
-    const menuSyncBtn = document.getElementById('menu-sync-btn');
-    const mobSyncBtn = document.getElementById('mob-sync-btn');
-    const closeBtn = document.getElementById('sync-modal-close-btn');
-    const doneBtn = document.getElementById('sync-modal-done-btn');
-    const copyCodeBtn = document.getElementById('sync-copy-code-btn');
-    const copyLinkBtn = document.getElementById('sync-copy-link-btn');
-    const newRoomBtn = document.getElementById('sync-new-room-btn');
-    const joinInput = document.getElementById('sync-join-input');
-    const joinBtn = document.getElementById('sync-join-btn');
-
-    const headerDot = document.getElementById('header-sync-dot');
-    const peerBadge = document.getElementById('sync-peer-badge');
-    const mobBadge = document.getElementById('mob-sync-badge');
-
-    const modalDot = document.getElementById('modal-sync-dot');
-    const modalTitle = document.getElementById('modal-sync-title');
-    const modalSubtitle = document.getElementById('modal-sync-subtitle');
-    const modalPeers = document.getElementById('modal-peers-count');
-    const modalRoomCode = document.getElementById('modal-room-code');
-    const modalQrContainer = document.getElementById('modal-qr-container');
-    const modalLinkPreview = document.getElementById('modal-link-preview');
-
-    const fbInput = document.getElementById('sync-firebase-input');
-    const fbSaveBtn = document.getElementById('sync-firebase-save-btn');
-    const fbClearBtn = document.getElementById('sync-firebase-clear-btn');
-    const fbStatus = document.getElementById('sync-firebase-status');
-
-    function updateFirebaseUI() {
-      if (!window.SyncEngine) return;
-      const fbUrl = window.SyncEngine.getFirebaseUrl();
-      if (fbInput && document.activeElement !== fbInput) {
-        fbInput.value = fbUrl || '';
-      }
-      if (fbStatus) {
-        if (fbUrl) {
-          fbStatus.textContent = '🟢 База активна';
-          fbStatus.classList.add('active');
-        } else {
-          fbStatus.textContent = 'Не настроен (MQTT)';
-          fbStatus.classList.remove('active');
-        }
-      }
-    }
-
-    function updateSyncUI(status, peerCount) {
-      updateFirebaseUI();
-      const isConnected = status === 'connected';
-      const isConnecting = status === 'connecting';
-
-      // Хедер
-      if (headerDot) {
-        headerDot.className = `sync-dot ${status}`;
-      }
-      if (peerBadge) {
-        peerBadge.style.display = (isConnected && peerCount > 1) ? 'inline-block' : 'none';
-        peerBadge.textContent = peerCount;
-      }
-      if (mobBadge) {
-        mobBadge.style.display = isConnected ? 'block' : 'none';
-        mobBadge.className = `badge-dot ${status}`;
-      }
-
-      // Модальное окно
-      if (modalDot) {
-        modalDot.className = `sync-dot-large ${status}`;
-      }
-      if (modalTitle) {
-        if (isConnected) {
-          modalTitle.textContent = peerCount > 1 ? `В сети (${peerCount} устройства)` : 'В сети (комната активна)';
-        } else if (isConnecting) {
-          modalTitle.textContent = 'Подключение к комнате...';
-        } else {
-          modalTitle.textContent = 'Офлайн (без интернета)';
-        }
-      }
-      if (modalSubtitle) {
-        modalSubtitle.textContent = isConnected ? 'Мгновенная передача карточек и стилуса' : 'Попытка установки защищенного WSS соединения';
-      }
-      if (modalPeers) {
-        if (isConnected) {
-          modalPeers.textContent = `🟢 ${peerCount} ${peerCount === 1 ? 'устройство' : (peerCount < 5 ? 'устройства' : 'устройств')}`;
-        } else {
-          modalPeers.textContent = '⚪ 0 устройств';
-        }
-      }
-
-      const currentRoom = window.SyncEngine.getRoomId();
-      if (modalRoomCode) {
-        modalRoomCode.textContent = currentRoom || '---';
-      }
-      const roomUrl = window.SyncEngine.getRoomUrl();
-      if (modalLinkPreview) {
-        modalLinkPreview.textContent = roomUrl;
-      }
-      if (modalQrContainer && currentRoom) {
-        window.SyncEngine.renderQRCode(modalQrContainer, roomUrl);
-      }
-    }
-
-    function openSyncModal() {
-      if (!syncModal) return;
-      syncModal.classList.add('active');
-      const curRoom = window.SyncEngine.getRoomId();
-      if (!curRoom) {
-        const initialRoom = window.SyncEngine.generateRoomCode();
-        window.SyncEngine.connect(initialRoom);
-      }
-      updateSyncUI(window.SyncEngine.getStatus(), window.SyncEngine.getPeerCount());
-    }
-
-    function closeSyncModal() {
-      if (syncModal) syncModal.classList.remove('active');
-    }
-
-    syncBtn?.addEventListener('click', openSyncModal);
-    menuSyncBtn?.addEventListener('click', openSyncModal);
-    mobSyncBtn?.addEventListener('click', openSyncModal);
-    closeBtn?.addEventListener('click', closeSyncModal);
-    doneBtn?.addEventListener('click', closeSyncModal);
-
-    copyCodeBtn?.addEventListener('click', () => {
-      const code = window.SyncEngine.getRoomId();
-      if (code) {
-        navigator.clipboard?.writeText(code).then(() => {
-          showGestureToast(`📋 Код ${code} скопирован!`);
-        }).catch(() => {
-          prompt('Скопируйте код комнаты:', code);
-        });
-      }
-    });
-
-    copyLinkBtn?.addEventListener('click', () => {
-      const url = window.SyncEngine.getRoomUrl();
-      if (url) {
-        navigator.clipboard?.writeText(url).then(() => {
-          showGestureToast('🔗 Ссылка сопряжения скопирована!');
-        }).catch(() => {
-          prompt('Скопируйте ссылку для планшета:', url);
-        });
-      }
-    });
-
-    newRoomBtn?.addEventListener('click', () => {
-      const newCode = window.SyncEngine.generateRoomCode();
-      window.SyncEngine.connect(newCode);
-      updateSyncUI(window.SyncEngine.getStatus(), window.SyncEngine.getPeerCount());
-      showGestureToast(`Создана комната ${newCode}`);
-    });
-
-    joinBtn?.addEventListener('click', () => {
-      const inputVal = (joinInput ? joinInput.value : '').trim().toUpperCase();
-      if (!inputVal) {
-        alert('Пожалуйста, введите код комнаты (например ХИМ-749)');
-        return;
-      }
-      window.SyncEngine.connect(inputVal);
-      if (joinInput) joinInput.value = '';
-      updateSyncUI(window.SyncEngine.getStatus(), window.SyncEngine.getPeerCount());
-      showGestureToast(`Подключение к ${inputVal}...`);
-    });
-
-    joinInput?.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        joinBtn?.click();
-      }
-    });
-
-    fbSaveBtn?.addEventListener('click', () => {
-      const url = (fbInput ? fbInput.value : '').trim();
-      if (url && !url.startsWith('http://') && !url.startsWith('https://')) {
-        alert('Пожалуйста, введите корректный URL базы Firebase (например https://my-project-default-rtdb.firebaseio.com)');
-        return;
-      }
-      window.SyncEngine.setFirebaseUrl(url);
-      updateFirebaseUI();
-      showGestureToast(url ? '🔥 Firebase RTDB подключен!' : 'Firebase отключен');
-    });
-
-    fbClearBtn?.addEventListener('click', () => {
-      window.SyncEngine.setFirebaseUrl('');
-      if (fbInput) fbInput.value = '';
-      updateFirebaseUI();
-      showGestureToast('Firebase очищен (MQTT активен)');
-    });
-
-    // Инициализация движка синхронизации с обработчиками
-    window.SyncEngine.init({
-      onStatusChange: (status, peerCount) => {
-        updateSyncUI(status, peerCount);
-      },
-
-      onMoveItem: (data) => {
-        if (!data || !data.source || !data.target) return;
-        moveItem(data.source, data.target, true);
-        showGestureToast('🔄 Карточка перемещена с другого устройства');
-      },
-
-      onToggleCompleted: (data) => {
-        if (!data || !data.itemId) return;
-        let found = false;
-        state.periods.forEach(p => {
-          Object.values(p.days || {}).forEach(day => {
-            (day.items || []).forEach(it => {
-              if (it.id === data.itemId) {
-                it.completed = !!data.completed;
-                found = true;
-              }
-            });
-          });
-        });
-        if (!found && state.backlog) {
-          state.backlog.forEach(it => {
-            if (it.id === data.itemId) {
-              it.completed = !!data.completed;
-              found = true;
-            }
-          });
-        }
-        if (found) {
-          saveState();
-          renderCalendar();
-          renderBacklog();
-          updateProgress();
-        }
-      },
-
-      onAddItem: (data) => {
-        if (!data || !data.item) return;
-        if (data.isBacklog) {
-          state.backlog.push(data.item);
-        } else {
-          const period = findPeriodByDate(data.dateKey);
-          if (period && period.days[data.dateKey]) {
-            period.days[data.dateKey].items.push(data.item);
-          }
-        }
-        saveState();
-        renderCalendar();
-        renderBacklog();
-        updateProgress();
-        showGestureToast('➕ Добавлен урок с другого устройства');
-      },
-
-      onUpdateItem: (data) => {
-        if (!data || !data.item || !data.item.id) return;
-        let found = false;
-        state.periods.forEach(p => {
-          Object.values(p.days || {}).forEach(day => {
-            (day.items || []).forEach(it => {
-              if (it.id === data.item.id) {
-                Object.assign(it, data.item);
-                found = true;
-              }
-            });
-          });
-        });
-        if (!found && state.backlog) {
-          state.backlog.forEach(it => {
-            if (it.id === data.item.id) {
-              Object.assign(it, data.item);
-              found = true;
-            }
-          });
-        }
-        if (found) {
-          saveState();
-          renderCalendar();
-          renderBacklog();
-          updateProgress();
-          showGestureToast('✏️ Урок изменен с другого устройства');
-        }
-      },
-
-      onDeleteItem: (data) => {
-        if (!data || !data.itemId) return;
-        deleteItem(data.dateKey, null, data.isBacklog, data.itemId, true);
-        showGestureToast('🗑️ Урок удален с другого устройства');
-      },
-
-      onStrokeAdd: (data) => {
-        if (!data || !data.stroke) return;
-        if (window.GoodNotesStylus && typeof window.GoodNotesStylus.drawRemoteStroke === 'function') {
-          window.GoodNotesStylus.drawRemoteStroke(data.stroke, data.periodIndex);
-        }
-      },
-
-      onStrokeChunk: (data) => {
-        if (!data) return;
-        if (window.GoodNotesStylus && typeof window.GoodNotesStylus.drawRemoteStrokeChunk === 'function') {
-          window.GoodNotesStylus.drawRemoteStrokeChunk(data);
-        }
-      },
-
-      onStrokeEnd: (data) => {
-        if (!data) return;
-        if (window.GoodNotesStylus && typeof window.GoodNotesStylus.finishRemoteStroke === 'function') {
-          window.GoodNotesStylus.finishRemoteStroke(data);
-        }
-      },
-
-      onStrokeUndo: (data) => {
-        if (window.GoodNotesStylus && typeof window.GoodNotesStylus.remoteUndo === 'function') {
-          window.GoodNotesStylus.remoteUndo(data.periodIndex);
-        }
-      },
-
-      onStrokeClear: (data) => {
-        if (window.GoodNotesStylus && typeof window.GoodNotesStylus.remoteClear === 'function') {
-          window.GoodNotesStylus.remoteClear(data.periodIndex);
-        }
-      },
-
-      onStrokeErase: (data) => {
-        if (!data) return;
-        const strokeIds = data.strokeIds || (data.strokeId ? [data.strokeId] : []);
-        if (strokeIds.length === 0) return;
-        const pIndex = data.periodIndex !== undefined ? data.periodIndex : state.currentPeriodIndex;
-        if (window.GoodNotesStylus && typeof window.GoodNotesStylus.remoteEraseStrokes === 'function') {
-          window.GoodNotesStylus.remoteEraseStrokes(strokeIds, pIndex);
-        }
-      },
-
-      onImageAdd: (data) => {
-        if (!data || !data.image) return;
-        const pId = data.periodId || (data.periodIndex !== undefined && state.periods[data.periodIndex] ? state.periods[data.periodIndex].id : (state.periods[state.currentPeriodIndex]?.id || 'default'));
-        if (!placedImages[pId]) placedImages[pId] = [];
-        if (!placedImages[pId].some(im => im.id === data.image.id)) {
-          placedImages[pId].push(data.image);
-          savePlacedImagesForPeriod(pId);
-          const curPid = state.periods[state.currentPeriodIndex]?.id;
-          if (curPid === pId) {
-            renderPlacedImages(curPid);
-          }
-        }
-      },
-
-      onImageUpdate: (data) => {
-        if (!data || !data.image) return;
-        const pId = data.periodId || (data.periodIndex !== undefined && state.periods[data.periodIndex] ? state.periods[data.periodIndex].id : (state.periods[state.currentPeriodIndex]?.id || 'default'));
-        const list = placedImages[pId];
-        if (list) {
-          const target = list.find(im => im.id === data.image.id);
-          if (target) {
-            Object.assign(target, data.image);
-            savePlacedImagesForPeriod(pId);
-            const curPid = state.periods[state.currentPeriodIndex]?.id;
-            if (curPid === pId) {
-              renderPlacedImages(curPid);
-            }
-          }
-        }
-      },
-
-      onImageDelete: (data) => {
-        const imageId = data?.imageId || (typeof data === 'string' ? data : null);
-        if (!data || !imageId) return;
-        const pId = data.periodId || (data.periodIndex !== undefined && state.periods[data.periodIndex] ? state.periods[data.periodIndex].id : (state.periods[state.currentPeriodIndex]?.id || 'default'));
-        const list = placedImages[pId];
-        if (list) {
-          placedImages[pId] = list.filter(im => im.id !== imageId);
-          savePlacedImagesForPeriod(pId);
-          const curPid = state.periods[state.currentPeriodIndex]?.id;
-          if (curPid === pId) {
-            renderPlacedImages(curPid);
-          }
-        }
-      },
-
-      onRequestState: () => {
-        return {
-          periods: state.periods,
-          backlog: state.backlog,
-          currentPeriodIndex: state.currentPeriodIndex,
-          drawings: window.GoodNotesStylus ? window.GoodNotesStylus.getDrawingsBackup() : {},
-          vectorStrokes: window.GoodNotesStylus ? window.GoodNotesStylus.getVectorStrokesBackup() : {},
-          placedImages: getAllPlacedImagesBackup()
-        };
-      },
-
-      onFullStateSync: (remoteState) => {
-        if (!remoteState || !remoteState.periods) return;
-        const remotePeriods = normalizePeriods(remoteState.periods);
-        // Не даём пустому/повреждённому слепку затереть рабочее расписание
-        if (remotePeriods.length === 0 || (countItems(remotePeriods) === 0 && countItems(state.periods) > 0)) {
-          console.warn('Пропущен пустой слепок расписания из синхронизации');
-          return;
-        }
-        state.periods = remotePeriods;
-        state.backlog = toArray(remoteState.backlog);
-        if (typeof remoteState.currentPeriodIndex === 'number' && remoteState.currentPeriodIndex < state.periods.length) {
-          state.currentPeriodIndex = remoteState.currentPeriodIndex;
-        }
-        if (remoteState.drawings && window.GoodNotesStylus) {
-          window.GoodNotesStylus.restoreDrawingsBackup(remoteState.drawings);
-        }
-        if (remoteState.vectorStrokes && window.GoodNotesStylus) {
-          window.GoodNotesStylus.restoreVectorStrokesBackup(remoteState.vectorStrokes);
-        }
-        if (remoteState.placedImages) {
-          restoreAllPlacedImagesBackup(remoteState.placedImages);
-        }
-        saveState();
-        renderPeriodsNav();
-        renderCalendar();
-        renderBacklog();
-        updateProgress();
-        showGestureToast('✨ Полная синхронизация завершена!');
-      }
-    });
-
-    // Первичная отрисовка UI статуса
-    updateSyncUI(window.SyncEngine.getStatus(), window.SyncEngine.getPeerCount());
-  }
-
-  function escapeHtml(text) {
-    if (!text) return '';
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-  }
-
-  // Запуск при готовности DOM
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initApp);
-  } else {
-    initApp();
-  }
-
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
+  else start();
 })();
