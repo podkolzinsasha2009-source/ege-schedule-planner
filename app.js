@@ -103,6 +103,42 @@
     window.__appBooted = true;
   }
 
+  // Восстановление структуры расписания.
+  // Firebase не хранит пустые массивы: у дней без уроков пропадает items: [],
+  // а массивы могут прийти объектами {"0": ..., "1": ...}. Без этой починки
+  // renderCalendar падает на первом пустом дне и расписание не отображается.
+  function toArray(value) {
+    if (Array.isArray(value)) return value.filter(Boolean);
+    if (value && typeof value === 'object') return Object.values(value).filter(Boolean);
+    return [];
+  }
+
+  function normalizePeriods(periods) {
+    return toArray(periods)
+      .filter(p => p && typeof p === 'object')
+      .map(p => {
+        const days = (p.days && typeof p.days === 'object') ? p.days : {};
+        Object.keys(days).forEach(key => {
+          const day = days[key];
+          if (!day || typeof day !== 'object') {
+            delete days[key];
+            return;
+          }
+          day.items = toArray(day.items);
+        });
+        p.days = days;
+        return p;
+      });
+  }
+
+  function countItems(periods) {
+    let total = 0;
+    (periods || []).forEach(p => {
+      Object.values(p.days || {}).forEach(d => { total += (d.items || []).length; });
+    });
+    return total;
+  }
+
   // Загрузка состояния из localStorage или базовых данных курса
   function loadState() {
     // Очищаем старую версию с тестами у пробников
@@ -114,9 +150,10 @@
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed && parsed.periods && parsed.periods.length > 0) {
-          state.periods = parsed.periods;
-          state.backlog = parsed.backlog || [];
+        const periods = parsed ? normalizePeriods(parsed.periods) : [];
+        if (periods.length > 0 && countItems(periods) > 0) {
+          state.periods = periods;
+          state.backlog = toArray(parsed.backlog);
           state.currentPeriodIndex = Math.max(0, Math.min(parsed.currentPeriodIndex || 0, state.periods.length - 1));
           state.showCompanions = parsed.showCompanions !== undefined ? parsed.showCompanions : true;
           cleanMockCompanionTests(state.periods, state.backlog);
@@ -1466,9 +1503,10 @@
     reader.onload = (event) => {
       try {
         const parsed = JSON.parse(event.target.result);
-        if (parsed.periods && Array.isArray(parsed.periods)) {
-          state.periods = parsed.periods;
-          state.backlog = parsed.backlog || [];
+        const importedPeriods = normalizePeriods(parsed.periods);
+        if (importedPeriods.length > 0) {
+          state.periods = importedPeriods;
+          state.backlog = toArray(parsed.backlog);
           if (parsed.drawings && window.GoodNotesStylus) {
             window.GoodNotesStylus.restoreDrawingsBackup(parsed.drawings);
           }
@@ -3814,8 +3852,14 @@
 
       onFullStateSync: (remoteState) => {
         if (!remoteState || !remoteState.periods) return;
-        state.periods = remoteState.periods;
-        state.backlog = remoteState.backlog || [];
+        const remotePeriods = normalizePeriods(remoteState.periods);
+        // Не даём пустому/повреждённому слепку затереть рабочее расписание
+        if (remotePeriods.length === 0 || (countItems(remotePeriods) === 0 && countItems(state.periods) > 0)) {
+          console.warn('Пропущен пустой слепок расписания из синхронизации');
+          return;
+        }
+        state.periods = remotePeriods;
+        state.backlog = toArray(remoteState.backlog);
         if (typeof remoteState.currentPeriodIndex === 'number' && remoteState.currentPeriodIndex < state.periods.length) {
           state.currentPeriodIndex = remoteState.currentPeriodIndex;
         }

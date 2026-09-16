@@ -3,7 +3,7 @@
 // «ХимБиоРус ЕГЭ» — Работает без сервера и интернета
 // ==========================================================================
 
-const CACHE_NAME = 'himbiorus-pwa-v12';
+const CACHE_NAME = 'himbiorus-pwa-v13';
 
 const ASSETS_TO_CACHE = [
   './',
