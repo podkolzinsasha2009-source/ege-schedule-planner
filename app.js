@@ -100,6 +100,7 @@
     try { setupPlacedImagesModule(); } catch (e) { console.error('Ошибка setupPlacedImagesModule:', e); }
     try { setupMobileNavigation(); } catch (e) { console.error('Ошибка setupMobileNavigation:', e); }
     try { setupRealtimeSync(); } catch (e) { console.error('Ошибка setupRealtimeSync:', e); }
+    window.__appBooted = true;
   }
 
   // Загрузка состояния из localStorage или базовых данных курса

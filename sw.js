@@ -3,7 +3,7 @@
 // «ХимБиоРус ЕГЭ» — Работает без сервера и интернета
 // ==========================================================================
 
-const CACHE_NAME = 'himbiorus-pwa-v11';
+const CACHE_NAME = 'himbiorus-pwa-v12';
 
 const ASSETS_TO_CACHE = [
   './',
@@ -26,7 +26,7 @@ self.addEventListener('install', (event) => {
     caches.open(CACHE_NAME).then(async (cache) => {
       for (const asset of ASSETS_TO_CACHE) {
         try {
-          await cache.add(asset);
+          await cache.add(new Request(asset, { cache: 'reload' }));
         } catch (err) {
           console.warn('PWA cache.add warning for asset:', asset, err);
         }
@@ -51,61 +51,32 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Обработка сетевых запросов:
-// 1. Для навигации/HTML страниц: Network First с фолбеком на кэш (планшет сразу получает свежую версию)
-// 2. Для статических файлов: Cache First с безопасным переходом в сеть
+// Обработка сетевых запросов: Network First для ВСЕХ файлов сайта.
+// Кэш используется только когда нет интернета — так устройства никогда
+// не застревают на старой (сломанной) версии app.js / styles.css.
 self.addEventListener('fetch', (event) => {
-  if (!event.request.url.startsWith(self.location.origin)) {
-    return;
-  }
-
-  if (event.request.url.includes('network-info.json')) {
-    event.respondWith(fetch(event.request).catch(() => new Response('{}', { headers: { 'Content-Type': 'application/json' } })));
-    return;
-  }
-
-  const isHtml = event.request.mode === 'navigate' || (event.request.headers.get('accept') || '').includes('text/html');
-
-  if (isHtml) {
-    event.respondWith(
-      fetch(event.request)
-        .then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200) {
-            const clone = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-          }
-          return networkResponse;
-        })
-        .catch(async () => {
-          const cached = await caches.match(event.request, { ignoreSearch: true });
-          if (cached) return cached;
-          const fallback = await caches.match('./index.html', { ignoreSearch: true });
-          if (fallback) return fallback;
-          return new Response('Офлайн режим', { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
-        })
-    );
+  const req = event.request;
+  if (req.method !== 'GET' || !req.url.startsWith(self.location.origin)) {
     return;
   }
 
   event.respondWith(
-    caches.match(event.request, { ignoreSearch: true }).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
-      return fetch(event.request).then((networkResponse) => {
-        if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
-          return networkResponse;
+    fetch(req, { cache: 'no-cache' })
+      .then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
+          const clone = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(req, clone)).catch(() => {});
         }
-        const responseToCache = networkResponse.clone();
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(event.request, responseToCache);
-        });
         return networkResponse;
-      }).catch(async () => {
-        const fallback = await caches.match(event.request, { ignoreSearch: true });
-        if (fallback) return fallback;
+      })
+      .catch(async () => {
+        const cached = await caches.match(req, { ignoreSearch: true });
+        if (cached) return cached;
+        if (req.mode === 'navigate') {
+          const fallback = await caches.match('./index.html', { ignoreSearch: true });
+          if (fallback) return fallback;
+        }
         return new Response('', { status: 408, statusText: 'Offline' });
-      });
-    })
+      })
   );
 });

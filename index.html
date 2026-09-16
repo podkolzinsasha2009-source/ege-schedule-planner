@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-title" content="ХимБиоРус">
   <meta name="theme-color" content="#4f46e5">
   <title>Годовой курс / ХимБиоРус / ЕГЭ — Интерактивный планировщик</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=12">
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icon.png">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📅</text></svg>">
@@ -648,10 +648,55 @@
     </button>
   </nav>
 
+  <!-- Аварийный экран: показывается, если сайт не запустился -->
+  <div id="boot-rescue" style="display:none;position:fixed;inset:0;z-index:999999;background:#0f1020;color:#fff;font:16px/1.5 system-ui,sans-serif;padding:24px;box-sizing:border-box;align-items:center;justify-content:center;text-align:center;">
+    <div style="max-width:420px;">
+      <div style="font-size:40px;">🛠️</div>
+      <h2 style="margin:8px 0;">Сайт не запустился</h2>
+      <p style="opacity:.8;">Скорее всего, на устройстве застряла старая версия. Нажмите кнопку — кэш обновится. Ваши заметки, рисунки и расписание сохранятся.</p>
+      <p id="boot-rescue-error" style="opacity:.6;font-size:12px;word-break:break-word;"></p>
+      <button onclick="location.href=location.pathname+'?reset=1'" style="font-size:18px;padding:12px 24px;border:0;border-radius:12px;background:#6d5dfc;color:#fff;">Обновить сайт</button>
+    </div>
+  </div>
+  <script>
+    // Сброс старого Service Worker и кэша: откройте сайт с ?reset=1
+    (function () {
+      window.__bootErrors = [];
+      window.addEventListener('error', function (e) { window.__bootErrors.push(e.message); });
+      if (/[?&]reset=1/.test(location.search)) {
+        var done = function () { location.replace(location.pathname); };
+        var jobs = [];
+        if ('serviceWorker' in navigator) {
+          jobs.push(navigator.serviceWorker.getRegistrations().then(function (regs) {
+            return Promise.all(regs.map(function (r) { return r.unregister(); }));
+          }));
+        }
+        if (window.caches) {
+          jobs.push(caches.keys().then(function (keys) {
+            return Promise.all(keys.map(function (k) { return caches.delete(k); }));
+          }));
+        }
+        Promise.all(jobs).then(done, done);
+        document.write('<p style="font:18px system-ui;padding:24px">Обновление сайта…</p>');
+        throw new Error('reset in progress');
+      }
+      // Если через 8 секунд приложение не отметилось как запущенное — показываем экран восстановления
+      setTimeout(function () {
+        if (!window.__appBooted) {
+          var el = document.getElementById('boot-rescue');
+          if (el) {
+            el.style.display = 'flex';
+            document.getElementById('boot-rescue-error').textContent = window.__bootErrors.slice(0, 3).join(' | ');
+          }
+        }
+      }, 8000);
+    })();
+  </script>
+
   <!-- База данных курса и скрипты логики -->
-  <script src="schedule_data.js"></script>
-  <script src="sync.js"></script>
-  <script src="app.js"></script>
+  <script src="schedule_data.js?v=12"></script>
+  <script src="sync.js?v=12"></script>
+  <script src="app.js?v=12"></script>
   <script>
     // Регистрация Service Worker для автономной оффлайн-работы (PWA)
     if ('serviceWorker' in navigator) {
