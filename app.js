@@ -85,21 +85,21 @@
     applyTheme(!isDark);
   }
 
-  // Инициализация приложения
+  // Инициализация приложения с полной изоляцией модулей от сбоев
   function initApp() {
-    loadState();
-    initTheme();
-    initWeekViewMode();
-    setupEventListeners();
-    renderPeriodsNav();
-    renderControls();
-    renderCalendar();
-    renderBacklog();
-    updateProgress();
-    setupGoodNotesStylus();
-    setupPlacedImagesModule();
-    setupMobileNavigation();
-    setupRealtimeSync();
+    try { loadState(); } catch (e) { console.error('Ошибка loadState:', e); }
+    try { initTheme(); } catch (e) { console.error('Ошибка initTheme:', e); }
+    try { initWeekViewMode(); } catch (e) { console.error('Ошибка initWeekViewMode:', e); }
+    try { setupEventListeners(); } catch (e) { console.error('Ошибка setupEventListeners:', e); }
+    try { renderPeriodsNav(); } catch (e) { console.error('Ошибка renderPeriodsNav:', e); }
+    try { renderControls(); } catch (e) { console.error('Ошибка renderControls:', e); }
+    try { renderCalendar(); } catch (e) { console.error('Ошибка renderCalendar:', e); }
+    try { renderBacklog(); } catch (e) { console.error('Ошибка renderBacklog:', e); }
+    try { updateProgress(); } catch (e) { console.error('Ошибка updateProgress:', e); }
+    try { setupGoodNotesStylus(); } catch (e) { console.error('Ошибка setupGoodNotesStylus:', e); }
+    try { setupPlacedImagesModule(); } catch (e) { console.error('Ошибка setupPlacedImagesModule:', e); }
+    try { setupMobileNavigation(); } catch (e) { console.error('Ошибка setupMobileNavigation:', e); }
+    try { setupRealtimeSync(); } catch (e) { console.error('Ошибка setupRealtimeSync:', e); }
   }
 
   // Загрузка состояния из localStorage или базовых данных курса
@@ -116,7 +116,7 @@
         if (parsed && parsed.periods && parsed.periods.length > 0) {
           state.periods = parsed.periods;
           state.backlog = parsed.backlog || [];
-          state.currentPeriodIndex = parsed.currentPeriodIndex || 0;
+          state.currentPeriodIndex = Math.max(0, Math.min(parsed.currentPeriodIndex || 0, state.periods.length - 1));
           state.showCompanions = parsed.showCompanions !== undefined ? parsed.showCompanions : true;
           cleanMockCompanionTests(state.periods, state.backlog);
           return;
@@ -297,7 +297,7 @@
           <button class="day-add-btn" title="Добавить плашку на этот день" data-date="${dateKey}">+</button>
         `;
 
-        header.querySelector('.day-add-btn').addEventListener('click', () => {
+        header.querySelector('.day-add-btn')?.addEventListener('click', () => {
           openCreateModal(dateKey);
         });
 
@@ -1512,6 +1512,7 @@
     if (!canvas || !wrapper) return;
 
     const ctx = canvas.getContext('2d', { desynchronized: true, alpha: true }) || canvas.getContext('2d');
+    if (!ctx) return;
     let isDrawingMode = false;
     let isDrawing = false;
     let isPanning = false;
@@ -2441,7 +2442,7 @@
     });
 
     // Выбор толщины и ползунок
-    const sizeSlider = document.getElementById('stylus-size-slider');
+    const sizeSlider = document.getElementById('stylus-size-slider') || document.getElementById('stylus-stroke-size');
     const sizeValEl = document.getElementById('stylus-size-val');
 
     document.querySelectorAll('.stroke-sizes .size-btn').forEach(btn => {
@@ -2467,7 +2468,7 @@
     const pressureText = document.getElementById('pressure-status-text');
     pressureBtn?.addEventListener('click', () => {
       pressureSensitivity = !pressureSensitivity;
-      pressureBtn.classList.toggle('active', pressureSensitivity);
+      pressureBtn?.classList.toggle('active', pressureSensitivity);
       if (pressureText) pressureText.textContent = pressureSensitivity ? 'Вкл' : 'Выкл';
       showGestureToast(pressureSensitivity ? '✍️ Нажим пера: Включен' : '✍️ Нажим пера: Выключен');
     });
@@ -2922,7 +2923,9 @@
 
   function applyWeekViewMode(mode) {
     weekViewMode = mode || 'columns';
-    localStorage.setItem('himbiorus_week_view', weekViewMode);
+    try {
+      localStorage.setItem('himbiorus_week_view', weekViewMode);
+    } catch (e) {}
     const wrapper = document.getElementById('calendar-wrapper');
     if (wrapper) {
       wrapper.classList.toggle('view-list', weekViewMode === 'list');
@@ -2953,7 +2956,8 @@
     const pId = periodId || (state.periods[state.currentPeriodIndex]?.id || 'default');
     try {
       const raw = localStorage.getItem(getImagesKey(pId));
-      placedImages[pId] = raw ? JSON.parse(raw) : [];
+      const parsed = raw ? JSON.parse(raw) : [];
+      placedImages[pId] = Array.isArray(parsed) ? parsed : [];
     } catch (e) {
       placedImages[pId] = [];
     }
@@ -2997,14 +3001,17 @@
     if (!layer) return;
     layer.innerHTML = '';
 
-    const list = placedImages[pId] || [];
+    const list = Array.isArray(placedImages[pId]) ? placedImages[pId] : [];
     list.forEach(imgObj => {
-      const el = createPlacedImageElement(imgObj, pId);
-      layer.appendChild(el);
+      if (imgObj && typeof imgObj === 'object' && imgObj.id) {
+        const el = createPlacedImageElement(imgObj, pId);
+        if (el) layer.appendChild(el);
+      }
     });
   }
 
   function createPlacedImageElement(imgObj, periodId) {
+    if (!imgObj || typeof imgObj !== 'object') return null;
     const container = document.createElement('div');
     container.className = 'placed-image-item' + (imgObj.pinned ? ' pinned' : '');
     container.setAttribute('data-id', imgObj.id);
@@ -3320,8 +3327,10 @@
 
     // Снятие выделения фото при клике вне его
     window.addEventListener('pointerdown', (e) => {
-      if (!e.target.closest('.placed-image-item') && !e.target.closest('#tool-insert-photo') && !e.target.closest('#menu-insert-photo-btn')) {
-        document.querySelectorAll('.placed-image-item').forEach(i => i.classList.remove('selected'));
+      if (e && e.target && typeof e.target.closest === 'function') {
+        if (!e.target.closest('.placed-image-item') && !e.target.closest('#tool-insert-photo') && !e.target.closest('#menu-insert-photo-btn')) {
+          document.querySelectorAll('.placed-image-item').forEach(i => i.classList.remove('selected'));
+        }
       }
     });
   }

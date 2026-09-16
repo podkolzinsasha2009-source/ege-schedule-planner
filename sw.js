@@ -3,7 +3,7 @@
 // «ХимБиоРус ЕГЭ» — Работает без сервера и интернета
 // ==========================================================================
 
-const CACHE_NAME = 'himbiorus-pwa-v10';
+const CACHE_NAME = 'himbiorus-pwa-v11';
 
 const ASSETS_TO_CACHE = [
   './',
@@ -16,25 +16,33 @@ const ASSETS_TO_CACHE = [
   './icon.png',
   './tablet_qr.svg',
   './tablet_qr.png',
+  './' + encodeURIComponent('ХимБиоРус_Расписание_ЕГЭ.docx'),
   './ХимБиоРус_Расписание_ЕГЭ.docx'
 ];
 
-// Установка: кэширование всех статических файлов приложения
+// Установка: надежное индивидуальное кэширование, не падающее из-за одного файла
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE);
+    caches.open(CACHE_NAME).then(async (cache) => {
+      for (const asset of ASSETS_TO_CACHE) {
+        try {
+          await cache.add(asset);
+        } catch (err) {
+          console.warn('PWA cache.add warning for asset:', asset, err);
+        }
+      }
     }).then(() => self.skipWaiting())
   );
 });
 
-// Активация: очистка старых версий кэша
+// Активация: мгновенная очистка устаревших версий кэша и перехват управления
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cache) => {
           if (cache !== CACHE_NAME) {
+            console.log('PWA: удаление устаревшего кэша:', cache);
             return caches.delete(cache);
           }
         })
@@ -43,7 +51,9 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Обработка сетевых запросов: стратегия Cache First, с переходом в сеть при отсутствии
+// Обработка сетевых запросов:
+// 1. Для навигации/HTML страниц: Network First с фолбеком на кэш (планшет сразу получает свежую версию)
+// 2. Для статических файлов: Cache First с безопасным переходом в сеть
 self.addEventListener('fetch', (event) => {
   if (!event.request.url.startsWith(self.location.origin)) {
     return;
@@ -54,8 +64,31 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  const isHtml = event.request.mode === 'navigate' || (event.request.headers.get('accept') || '').includes('text/html');
+
+  if (isHtml) {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const clone = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          }
+          return networkResponse;
+        })
+        .catch(async () => {
+          const cached = await caches.match(event.request, { ignoreSearch: true });
+          if (cached) return cached;
+          const fallback = await caches.match('./index.html', { ignoreSearch: true });
+          if (fallback) return fallback;
+          return new Response('Офлайн режим', { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+        })
+    );
+    return;
+  }
+
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
+    caches.match(event.request, { ignoreSearch: true }).then((cachedResponse) => {
       if (cachedResponse) {
         return cachedResponse;
       }
@@ -68,10 +101,10 @@ self.addEventListener('fetch', (event) => {
           cache.put(event.request, responseToCache);
         });
         return networkResponse;
-      }).catch(() => {
-        if (event.request.headers.get('accept')?.includes('text/html')) {
-          return caches.match('./index.html');
-        }
+      }).catch(async () => {
+        const fallback = await caches.match(event.request, { ignoreSearch: true });
+        if (fallback) return fallback;
+        return new Response('', { status: 408, statusText: 'Offline' });
       });
     })
   );

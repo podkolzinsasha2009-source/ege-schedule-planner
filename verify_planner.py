@@ -245,12 +245,12 @@ def test_zero_latency_and_redesign():
     assert "touch-action: none !important" in css, "styles.css missing strict touch-action: none !important"
     print("✓ styles.css dropdown menu, slim progress bar, accordion checklists, subject pills, and zero-delay touch-action verified.")
 
-    # 4. SW v10 verification
+    # 4. SW v11 verification
     sw_path = os.path.join(DIR, "sw.js")
     with open(sw_path, "r", encoding="utf-8") as f:
         sw = f.read()
-    assert "himbiorus-pwa-v10" in sw, "sw.js missing v10 cache name"
-    print("✓ sw.js v10 cache version verified.")
+    assert "himbiorus-pwa-v11" in sw, "sw.js missing v11 cache name"
+    print("✓ sw.js v11 cache version verified.")
 
 def test_realtime_synchronization():
     # 1. sync.js Engine Verification
@@ -342,8 +342,8 @@ def test_realtime_synchronization():
     with open(sw_path, "r", encoding="utf-8") as f:
         sw = f.read()
     assert "'./sync.js'" in sw or '"./sync.js"' in sw, "sw.js missing sync.js in ASSETS_TO_CACHE"
-    assert "himbiorus-pwa-v10" in sw, "sw.js missing v10 cache version"
-    print("✓ sw.js PWA v10 cache verified: sync.js cached for 100% offline capability.")
+    assert "himbiorus-pwa-v11" in sw, "sw.js missing v11 cache version"
+    print("✓ sw.js PWA v11 cache verified: sync.js cached for 100% offline capability.")
 
     # 6. Bit-Perfect MiniQR ISO/IEC 18004 Verification against Python qrcode
     import subprocess, json
@@ -646,8 +646,13 @@ def test_new_stylus_mobile_and_photo_features():
     assert "menu-insert-photo-btn" in app_js, "app.js missing listener for menu-insert-photo-btn"
     assert "paste" in app_js, "app.js missing clipboard paste listener for images"
     assert "draggable" in app_js, "app.js must set draggable false to prevent ghost image dragging"
+    assert 'id="stylus-stroke-size"' in html, "index.html missing #stylus-stroke-size element"
+    assert "stylus-stroke-size" in app_js, "app.js missing fallback for stylus-stroke-size"
+    assert "reg.update()" in html, "index.html missing reg.update() in SW registration"
+    assert "typeof e.target.closest === 'function'" in app_js, "app.js must safely guard e.target.closest"
+    assert "try { loadState(); } catch" in app_js, "app.js initApp must be fault-tolerant with try-catch isolation"
 
-    print("✓ Full week mobile columns, GoodNotes stroke eraser, pressure sensitivity, and placed images verified.")
+    print("✓ Full week mobile columns, GoodNotes stroke eraser, pressure sensitivity, placed images, and startup fault tolerance verified.")
 
 if __name__ == "__main__":
     test_files_exist()
