@@ -588,8 +588,14 @@
     $('#period-title').textContent = p ? p.name : '';
     $('#period-counter').textContent = `Период ${ui.periodIndex + 1} из ${COURSE.length}`;
     $$('#period-tabs .period-tab').forEach((el, i) => el.classList.toggle('is-active', i === ui.periodIndex));
+    // Листаем только полоску вкладок по горизонтали. scrollIntoView здесь нельзя:
+    // он прокручивает и саму страницу к вкладкам, и лента перестаёт листаться.
+    const tabs = $('#period-tabs');
     const active = $('#period-tabs .is-active');
-    if (active) active.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
+    if (tabs && active) {
+      const offset = active.getBoundingClientRect().left - tabs.getBoundingClientRect().left + tabs.scrollLeft;
+      tabs.scrollTo({ left: offset - (tabs.clientWidth - active.offsetWidth) / 2, behavior: 'smooth' });
+    }
     renderLoad();
   }
 
@@ -611,17 +617,22 @@
     if (el) window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - 84);
   }
 
-  let viewPeriodRaf = null;
+  let viewPeriodPending = false;
   function scheduleViewPeriodUpdate() {
-    if (viewPeriodRaf) return;
-    viewPeriodRaf = requestAnimationFrame(() => {
-      viewPeriodRaf = null;
+    if (viewPeriodPending) return;
+    viewPeriodPending = true;
+    const run = () => {
+      if (!viewPeriodPending) return;
+      viewPeriodPending = false;
       const idx = periodIndexInView();
       if (idx === ui.periodIndex) return;
       ui.periodIndex = idx;
       lsSet('hb_period', String(idx));
       updatePeriodChrome();
-    });
+    };
+    requestAnimationFrame(run);
+    // Кадры анимации не приходят в фоновой вкладке — тогда обновим по таймеру
+    setTimeout(run, 150);
   }
 
   // -------------------------------------------------------- средняя нагрузка в день
