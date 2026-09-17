@@ -41,25 +41,65 @@
     alert: { sign: '!', label: 'Рубежная аттестация' }
   };
 
-  // Ориентировочное время на выполнение — своя оценка (не найдено готового значения
-  // в проекте), можно менять. Используется только для «средней нагрузки в день».
-  const DURATION_MIN = {
-    theory: 60,
-    practice: 90,
-    test: 60,
-    homework: 90,
-    webinar: 90,
-    mock: 180,
-    review: 45,
-    attestation: 120,
-    credit: 45,
-    event: 60,
-    payment: 0
+  // Время на выполнение, минуты. Берётся из промпта планировщика (D:\КУРСЫ\промпт.md):
+  // для диапазонов — середина. Где в промпте цифры нет, стоит своя оценка (помечено «оценка»).
+  const DURATIONS = {
+    chem: {
+      theory: 60,       // видеоурок ~1 ч
+      homework: 105,    // письменное ДЗ к теории 1,5–2 ч
+      practice: 120,    // вебинар в среднем 2 ч
+      test: 60,         // тест к практике ~1 ч
+      webinar: 120,     // клуб укротителей задач в среднем 2 ч
+      mock: 210,        // пробник по химии — 3,5 ч
+      attestation: 165, // тест ~1 ч + 2-я часть 1,5–2 ч
+      credit: 40        // зачёт/коллоквиум 30–45 мин
+    },
+    bio: {
+      theory: 60,       // видеоурок ~1 ч
+      test: 50,         // тест к теории 45–60 мин
+      practice: 180,    // вебинар в среднем 3 ч
+      homework: 105,    // ДЗ 2-й части 1,5–2 ч
+      webinar: 90,      // «Эвристика», вводный вебинар — оценка
+      mock: 195,        // пробник 3–3,5 ч
+      attestation: 165,
+      credit: 40
+    },
+    rus: {
+      theory: 50,       // видеоурок 45–60 мин
+      test: 40,         // тематический тест 30–50 мин
+      practice: 90,     // вебинар в среднем 1,5 ч
+      homework: 105,    // сочинение 1,5–2 ч
+      review: 90,       // разбор произведения: от 50 мин до 3,5 ч — оценка
+      webinar: 90,      // вводный вебинар — оценка
+      event: 90,        // интенсив по ИС — оценка
+      mock: 195,
+      attestation: 165,
+      credit: 40        // зачётный диктант — оценка
+    }
   };
 
   function itemDuration(it) {
-    const v = DURATION_MIN[it.category];
-    return typeof v === 'number' ? v : 60;
+    const cat = it.category;
+    const title = it.title || '';
+    if (cat === 'payment') return 0;
+    // Онлайн-разборы пробников в расписание не включаются (по промпту)
+    if (/разбор\s+(входного\s+)?пробника/i.test(title)) return 0;
+    if (it.subject === 'rus') {
+      if (cat === 'test' && !it.isCompanion) return 105;               // «Тест №N» — полный тест 1-й части, 1,5–2 ч
+      if (cat === 'event' && /итоговое сочинение/i.test(title)) return 105;
+    }
+    if (it.subject === 'chem' && /задач[аи]\s*34/i.test(it.subtitle || '')) {
+      if (cat === 'practice') return 180;                             // вебинары по задаче 34 — до 3 ч
+      if (cat === 'test') return 75;                                  // вместо теста задачник 1–1,5 ч
+    }
+    const table = DURATIONS[it.subject] || DURATIONS.rus;
+    return typeof table[cat] === 'number' ? table[cat] : 60;
+  }
+
+  function formatMinutes(min) {
+    if (min < 60) return `${Math.round(min)} мин`;
+    const h = Math.round(min / 6) / 10;
+    return `${String(h).replace('.', ',')} ч`;
   }
 
   const ui = {
@@ -259,17 +299,22 @@
 
   // --------------------------------------------------------------- дедлайны
 
-  // Определено по разбору формул, которые прислал пользователь на конкретных
-  // примерах дат. Дни считаются от даты плашки (23:59 того же часового пояса,
-  // что и остальное расписание). Там, где пользователь явно не назвал число,
-  // взято по аналогии — см. итоговое сообщение, где это оговорено отдельно.
+  // Правила — из объяснения пользователя на примерах (не из промпта). Срок всегда
+  // считается от даты ВЫХОДА по расписанию курса, а не от дня, куда плашку
+  // перетащили: перенос плашки — это план, когда её делать, срок от него не меняется.
+  //   пробник: выложен в 00:00 дня N → до 23:59 дня N+6 (химия: 14.09 → 20.09)
+  //   рубежная аттестация: выложена в день N → до 23:59 дня N+7 (22.09 → 29.09)
+  //   тест к разбору произведения: выложен N → до N+4 (4.09 → 8.09)
+  //   биология: тест к теории N → N+4 (12.09 → 16.09); ДЗ к практике N → N+3 (15.09 → 18.09)
+  //   русский: тест к теории N → N+4 (как у биологии); сочинение к практике → N+7 (со слов «по-моему, неделя»)
+  //   химия: и письменное ДЗ к теории №K, и тест к практике №K → дата теории №K + 7 (12.09 → 19.09)
   const DEADLINE_DAYS = {
-    mock: 6,          // пробник: выложен «в 00:00 N числа» → дедлайн 23:59 (N+6)
-    attestation: 7,   // рубежная аттестация: +неделя
-    reviewTest: 4,    // тест к разбору произведения: +4 дня
-    theoryTest: { bio: 4, rus: 4 },          // тест к теории (био/рус)
-    practiceHw: { bio: 3, rus: 7 },          // ДЗ/сочинение к практике (био: 3 дня, рус: неделя — не названо явно)
-    chem: 7           // химия: и ДЗ к теории, и тест к практике — от даты теории того же номера, +7 дней
+    mock: 6,
+    attestation: 7,
+    reviewTest: 4,
+    theoryTest: { bio: 4, rus: 4 },
+    practiceHw: { bio: 3, rus: 7 },
+    chem: 7
   };
 
   function itemNumber(title) {
@@ -294,45 +339,65 @@
     return `до ${date.getDate()} ${DEADLINE_MONTHS[date.getMonth()]}, 23:59`;
   }
 
-  // Строим один раз за отрисовку: карту id→плашка и «дату теории по химии для номера N»
-  // (тест к практике №N по химии считается от даты ТЕОРИИ №N, а не от своей собственной).
-  function buildDeadlineContext(itemsList) {
+  // Исходное расписание курса: где плашка стоит в PDF и дата теории по химии для номера
+  const COURSE_INDEX = (() => {
     const byId = {};
     const chemTheoryDate = {};
-    itemsList.forEach(it => {
-      byId[it.id] = it;
-      if (it.subject === 'chem' && it.category === 'theory' && it.date && it.date !== 'backlog') {
-        const n = itemNumber(it.title);
-        if (n && !chemTheoryDate[n]) chemTheoryDate[n] = it.date;
-      }
-    });
+    COURSE.forEach(p => Object.keys(p.days).forEach(dateKey => {
+      p.days[dateKey].items.forEach(it => {
+        byId[it.id] = { date: dateKey, item: it };
+        if (it.subject === 'chem' && it.category === 'theory') {
+          const n = itemNumber(it.title);
+          if (n && !chemTheoryDate[n]) chemTheoryDate[n] = dateKey;
+        }
+      });
+    }));
     return { byId, chemTheoryDate };
+  })();
+
+  function buildDeadlineContext(itemsList) {
+    const byId = {};
+    itemsList.forEach(it => { byId[it.id] = it; });
+    return { byId };
   }
 
+  // Дата выхода: по курсу для самой плашки, иначе по курсу для её занятия
+  // (тест/ДЗ выходят в один день со своим занятием), иначе — текущий день плашки.
+  function releaseDateKey(it, parentId) {
+    const own = COURSE_INDEX.byId[it.id];
+    if (own) return own.date;
+    const parent = parentId && COURSE_INDEX.byId[parentId];
+    if (parent) return parent.date;
+    return it.date && it.date !== 'backlog' ? it.date : null;
+  }
+
+  // Возвращает дату дедлайна (Date) или null
   function deadlineFor(it, ctx) {
-    if (!it.date || it.date === 'backlog') return null;
-    if (it.category === 'mock') return formatDeadline(addDays(parseDateKey(it.date), DEADLINE_DAYS.mock));
-    if (it.category === 'attestation') return formatDeadline(addDays(parseDateKey(it.date), DEADLINE_DAYS.attestation));
-    if (!it.isCompanion) return null;
+    if (it.category === 'mock' || it.category === 'attestation') {
+      const key = releaseDateKey(it);
+      return key ? addDays(parseDateKey(key), DEADLINE_DAYS[it.category]) : null;
+    }
+    if (!it.isCompanion || !it.parentId) return null;
+
+    const courseParent = COURSE_INDEX.byId[it.parentId];
+    const parent = (courseParent && courseParent.item) || ctx.byId[it.parentId];
+    const key = releaseDateKey(it, it.parentId);
+    if (!parent || !key) return null;
 
     if (it.subject === 'chem') {
-      const num = itemNumber(it.title);
-      const theoryDateKey = (num && ctx.chemTheoryDate[num]) || it.date;
-      return formatDeadline(addDays(parseDateKey(theoryDateKey), DEADLINE_DAYS.chem));
+      if (parent.category !== 'theory' && parent.category !== 'practice') return null;
+      const num = itemNumber(parent.title);
+      const theoryKey = (num && COURSE_INDEX.chemTheoryDate[num]) || key;
+      return addDays(parseDateKey(theoryKey), DEADLINE_DAYS.chem);
     }
-
-    const parent = it.parentId ? ctx.byId[it.parentId] : null;
-    const parentCategory = parent ? parent.category : null;
-    if (parentCategory === 'review') {
-      return formatDeadline(addDays(parseDateKey(it.date), DEADLINE_DAYS.reviewTest));
-    }
-    if (parentCategory === 'theory') {
+    if (parent.category === 'review') return addDays(parseDateKey(key), DEADLINE_DAYS.reviewTest);
+    if (parent.category === 'theory') {
       const days = DEADLINE_DAYS.theoryTest[it.subject];
-      return days ? formatDeadline(addDays(parseDateKey(it.date), days)) : null;
+      return days ? addDays(parseDateKey(key), days) : null;
     }
-    if (parentCategory === 'practice') {
+    if (parent.category === 'practice') {
       const days = DEADLINE_DAYS.practiceHw[it.subject];
-      return days ? formatDeadline(addDays(parseDateKey(it.date), days)) : null;
+      return days ? addDays(parseDateKey(key), days) : null;
     }
     return null;
   }
@@ -359,6 +424,8 @@
     const icon = ICONS[it.icon];
     const typeLabel = it.isCompanion ? (it.category === 'homework' ? 'ДЗ' : 'Тест') : category;
     const deadline = deadlineCtx ? deadlineFor(it, deadlineCtx) : null;
+    // Плашку поставили в план позже срока — подсвечиваем
+    const late = deadline && !it.completed && it.date && it.date !== 'backlog' && parseDateKey(it.date) > deadline;
     return `
       <div class="card ${it.subject || 'general'} cat-${it.category || 'theory'}${it.isCompanion ? ' is-companion' : ''}${it.completed ? ' is-done' : ''}${extraClass ? ' ' + extraClass : ''}" data-id="${escapeHtml(it.id)}">
         <div class="card-top">
@@ -370,7 +437,7 @@
         </div>
         <div class="card-title">${escapeHtml(it.title)}</div>
         ${it.subtitle ? `<div class="card-sub">${escapeHtml(it.subtitle)}</div>` : ''}
-        ${deadline ? `<div class="card-deadline">${escapeHtml(deadline)}</div>` : ''}
+        ${deadline ? `<div class="card-deadline${late ? ' is-late' : ''}"${late ? ' title="Плашка стоит позже срока сдачи"' : ''}>${escapeHtml(formatDeadline(deadline))}${late ? ' · позже срока' : ''}</div>` : ''}
       </div>`;
   }
 
@@ -472,12 +539,14 @@
             const day = period.days[dateKey];
             const list = (byDate[dateKey] || []).filter(it => !isPayment(it) && isVisible(it));
             const isToday = dateKey === todayKey();
+            const dayMinutes = dayLoadMinutes(byDate[dateKey]);
             return `
               <section class="day${isToday ? ' is-today' : ''}${list.length ? '' : ' is-empty'}" data-date="${dateKey}">
                 <header class="day-head">
                   <span class="day-name">${escapeHtml(day.dayName)}</span>
                   <span class="day-num">${day.dayNum}</span>
                   <span class="day-month">${escapeHtml(day.month)}</span>
+                  ${dayMinutes ? `<span class="day-load${dayMinutes >= 360 ? ' is-heavy' : ''}" title="Нагрузка дня">${formatMinutes(dayMinutes)}</span>` : ''}
                   <button class="day-add" type="button" data-add="${dateKey}" aria-label="Добавить плашку">+</button>
                 </header>
                 <div class="day-list" data-drop="${dateKey}">
@@ -492,6 +561,7 @@
           <header class="period-divider">
             <span class="period-divider-num">${String(periodIdx + 1).padStart(2, '0')}</span>
             <span class="period-divider-name">${escapeHtml(period.name)}</span>
+            <span class="period-divider-load">в среднем <b>${formatMinutes(periodLoad(period, byDate).perDay)}</b> в день</span>
           </header>
           ${weeksHtml}
         </section>`;
@@ -586,7 +656,6 @@
   function updatePeriodChrome() {
     const p = currentPeriod();
     $('#period-title').textContent = p ? p.name : '';
-    $('#period-counter').textContent = `Период ${ui.periodIndex + 1} из ${COURSE.length}`;
     $$('#period-tabs .period-tab').forEach((el, i) => el.classList.toggle('is-active', i === ui.periodIndex));
     // Листаем только полоску вкладок по горизонтали. scrollIntoView здесь нельзя:
     // он прокручивает и саму страницу к вкладкам, и лента перестаёт листаться.
@@ -637,25 +706,30 @@
 
   // -------------------------------------------------------- средняя нагрузка в день
 
-  function computePeriodLoadMinutes(period) {
-    const byDate = itemsByDate();
-    let total = 0;
-    Object.keys(period.days).forEach(dateKey => {
-      (byDate[dateKey] || []).forEach(it => { if (it.category !== 'payment') total += itemDuration(it); });
-    });
-    return { total, days: Object.keys(period.days).length };
+  // Первый день курса — пустые дни до старта в среднее не входят
+  const COURSE_START = Object.keys(COURSE_INDEX.byId).map(id => COURSE_INDEX.byId[id].date).sort()[0] || '';
+
+  function dayLoadMinutes(list) {
+    return (list || []).reduce((sum, it) => sum + itemDuration(it), 0);
+  }
+
+  // Считается по дню, где плашка стоит сейчас: переносишь или добавляешь — цифра меняется
+  function periodLoad(period, byDate) {
+    const map = byDate || itemsByDate();
+    const days = Object.keys(period.days).filter(k => k >= COURSE_START);
+    const total = days.reduce((sum, k) => sum + dayLoadMinutes(map[k]), 0);
+    return { total, days: days.length, perDay: days.length ? total / days.length : 0 };
   }
 
   function renderLoad() {
     const period = currentPeriod();
-    const valueEl = $('[data-load]');
-    const labelEl = $('[data-load-label]');
-    if (!valueEl || !period) return;
-    const { total, days } = computePeriodLoadMinutes(period);
-    const perDay = days ? total / days : 0;
-    const hours = perDay / 60;
-    valueEl.textContent = hours >= 1 ? `${(Math.round(hours * 10) / 10)}`.replace('.', ',') + ' ч' : `${Math.round(perDay)} мин`;
-    if (labelEl) labelEl.textContent = `в день · ${period.name}`;
+    if (!period) return;
+    const { perDay } = periodLoad(period);
+    const text = formatMinutes(perDay);
+    $$('[data-load]').forEach(el => { el.textContent = text; });
+    $$('[data-load-label]').forEach(el => { el.textContent = `в среднем в день · ${period.name}`; });
+    const counter = $('#period-counter');
+    if (counter) counter.textContent = `Период ${ui.periodIndex + 1} из ${COURSE.length} · ${text} в день`;
   }
 
   function todayKey() {
@@ -1061,7 +1135,8 @@
       const rec = { date: creatingDate, order: last ? last.order + 1000 : 1000 };
       Object.keys(fields).forEach(k => { if (fields[k] !== null) rec[k] = fields[k]; });
       Store.update({ [`items/${id}`]: rec });
-      toast('Плашка добавлена');
+      const added = itemDuration(rec);
+      toast(added && creatingDate !== 'backlog' ? `Плашка добавлена · +${formatMinutes(added)} к дню` : 'Плашка добавлена');
     }
     closeModal($('#item-modal'));
   }
@@ -1072,7 +1147,8 @@
     if (!confirm(`Удалить плашку «${it ? it.title : ''}»?`)) return;
     Store.update({ [`items/${editingId}`]: null });
     closeModal($('#item-modal'));
-    toast('Плашка удалена');
+    const removed = it ? itemDuration(it) : 0;
+    toast(removed && it.date !== 'backlog' ? `Плашка удалена · −${formatMinutes(removed)} от дня` : 'Плашка удалена');
   }
 
   function toggleCompleted(id) {

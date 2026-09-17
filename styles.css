@@ -420,6 +420,8 @@ main { position: relative; }
   background: var(--surface-3); font-size: 10px; font-weight: 800; color: var(--faint);
 }
 .period-divider-name { font-size: 15px; font-weight: 800; letter-spacing: -0.01em; color: var(--text); }
+.period-divider-load { margin-left: auto; font-size: 12px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+.period-divider-load b { color: var(--accent); font-weight: 800; }
 
 .day {
   display: flex; flex-direction: column; min-height: 132px;
@@ -435,6 +437,13 @@ main { position: relative; }
   border: 1px solid var(--line); background: none; color: var(--muted); font-size: 15px; line-height: 1;
   opacity: 0; transition: opacity 0.2s, background 0.2s, color 0.2s;
 }
+/* Нагрузка дня в часах — рядом с датой */
+.day-load {
+  margin-left: auto; align-self: center; padding: 2px 7px; border-radius: 999px;
+  background: var(--surface-3); color: var(--muted); font-size: 10px; font-weight: 800; white-space: nowrap;
+}
+.day-load.is-heavy { background: var(--accent-soft); color: var(--accent); }
+.day-load + .day-add { margin-left: 4px; }
 .day:hover .day-add, .day-add:focus-visible { opacity: 1; }
 .day-add:hover { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
 @media (hover: none) { .day-add { opacity: 0.6; } }
@@ -523,6 +532,7 @@ main { position: relative; }
   margin-top: 4px; font-size: 9px; font-weight: 700; letter-spacing: 0.02em;
   color: color-mix(in srgb, var(--text) 55%, transparent);
 }
+.card-deadline.is-late { color: var(--danger); }
 
 .card.is-companion { --fill: 14%; --edge: 38%; border-style: dashed; }
 :root[data-theme="light"] .card.is-companion { --fill: 9%; --edge: 45%; }
