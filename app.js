@@ -718,9 +718,55 @@
   }
 
   function setFitZoom() {
+    zoomAnim = null;
     ui.zoomMode = 'fit';
     lsSet('hb_zoom', 'fit');
     updateBoardSize();
+  }
+
+  // Плавный масштаб: колесо и кнопки меняют только целевое значение, а доска
+  // догоняет его за несколько кадров. Быстрые щелчки колеса складываются.
+  const ZOOM_MIN = 0.2, ZOOM_MAX = 2.5;
+  let zoomAnim = null; // { target, x, y }
+
+  function smoothZoomBy(factor, anchorX, anchorY) {
+    const base = zoomAnim ? zoomAnim.target : ui.zoom;
+    const target = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, base * factor));
+    const running = !!zoomAnim;
+    zoomAnim = { target, x: anchorX, y: anchorY };
+    if (!running) nextFrame(stepZoom);
+  }
+
+  // Кадр анимации с запасным таймером: в фоновой вкладке кадры не приходят
+  function nextFrame(fn) {
+    let done = false;
+    const run = () => { if (done) return; done = true; fn(); };
+    requestAnimationFrame(run);
+    setTimeout(run, 34);
+  }
+
+  function stepZoom() {
+    const a = zoomAnim;
+    if (!a) return;
+    const diff = a.target - ui.zoom;
+    if (Math.abs(diff) < 0.002) {
+      setZoom(a.target, a.x, a.y);
+      zoomAnim = null;
+      return;
+    }
+    setZoom(ui.zoom + diff * 0.3, a.x, a.y);
+    nextFrame(stepZoom);
+  }
+
+  // Колесо мыши присылает ~100 за щелчок, тачпад — небольшие значения за кадр.
+  // Приводим строки/страницы к пикселям и ограничиваем шаг, чтобы один щелчок
+  // менял масштаб примерно на 10%, а щипок тачпадом оставался плавным.
+  function wheelZoomFactor(e) {
+    let dy = e.deltaY;
+    if (e.deltaMode === 1) dy *= 16;
+    else if (e.deltaMode === 2) dy *= window.innerHeight;
+    dy = Math.max(-50, Math.min(50, dy));
+    return Math.exp(-dy * 0.002);
   }
 
   function setupZoom() {
@@ -729,17 +775,21 @@
       ui.zoomMode = 'manual';
       ui.zoom = parseFloat(saved);
     }
-    $('#zoom-in').addEventListener('click', () => setZoom(ui.zoom * 1.2));
-    $('#zoom-out').addEventListener('click', () => setZoom(ui.zoom / 1.2));
+    $('#zoom-in').addEventListener('click', () => smoothZoomBy(1.2));
+    $('#zoom-out').addEventListener('click', () => smoothZoomBy(1 / 1.2));
     $('#zoom-fit').addEventListener('click', setFitZoom);
     window.addEventListener('resize', () => { if (ui.zoomMode === 'fit') updateBoardSize(); });
 
     const viewport = $('#board-viewport');
-    // Ctrl + колесо / жест трекпада — масштаб
-    viewport.addEventListener('wheel', (e) => {
+    // Ctrl + колесо / щипок на тачпаде — плавный масштаб доски. Ловим над всей
+    // областью расписания (с фильтрами и вкладками), иначе браузер масштабирует
+    // саму страницу рывками.
+    $('.board-shell').addEventListener('wheel', (e) => {
       if (!e.ctrlKey) return;
       e.preventDefault();
-      setZoom(ui.zoom * Math.exp(-e.deltaY * 0.01), e.clientX, e.clientY);
+      const vr = viewport.getBoundingClientRect();
+      const overBoard = e.clientY >= vr.top && e.clientY <= vr.bottom;
+      smoothZoomBy(wheelZoomFactor(e), overBoard ? e.clientX : undefined, overBoard ? e.clientY : undefined);
     }, { passive: false });
 
     // Щипок двумя пальцами — масштаб (в режиме стилуса жесты обрабатывает ink.js)
@@ -747,6 +797,7 @@
     const dist = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
     viewport.addEventListener('touchstart', (e) => {
       if (e.touches.length === 2 && !ui.drawMode) {
+        zoomAnim = null; // щипок пальцами управляет масштабом напрямую
         pinch = { d: dist(e.touches), z: ui.zoom };
       }
     }, { passive: true });
