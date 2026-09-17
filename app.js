@@ -41,6 +41,27 @@
     alert: { sign: '!', label: 'Рубежная аттестация' }
   };
 
+  // Ориентировочное время на выполнение — своя оценка (не найдено готового значения
+  // в проекте), можно менять. Используется только для «средней нагрузки в день».
+  const DURATION_MIN = {
+    theory: 60,
+    practice: 90,
+    test: 60,
+    homework: 90,
+    webinar: 90,
+    mock: 180,
+    review: 45,
+    attestation: 120,
+    credit: 45,
+    event: 60,
+    payment: 0
+  };
+
+  function itemDuration(it) {
+    const v = DURATION_MIN[it.category];
+    return typeof v === 'number' ? v : 60;
+  }
+
   const ui = {
     periodIndex: 0,
     subject: 'all',
@@ -212,6 +233,112 @@
     Store.update(updates);
   }
 
+  // По химии тест и письменное ДЗ раньше цеплялись не к тем занятиям (тест — к теории,
+  // ДЗ — к практике). Пользователь объяснил, что по химии наоборот: ДЗ — к теории,
+  // тест — к практике. Ниже — таблица «какой companion какой категорией/названием
+  // должен стать», построенная сравнением старого и нового build_dataset.py. Меняем
+  // те же самые id (без переименования) — категория и название чисто косметические
+  // для кода, а id как ключ БД трогать незачем.
+  const CHEM_COMPANION_FIX_2026 = {"comp-test-p1_15_c1":{"category":["test","homework"],"title":["Тест: Теория №1","Письменное ДЗ: Теория №1"]},"comp-test-p1_15_c2":{"category":["test","homework"],"title":["Тест: Теория №2","Письменное ДЗ: Теория №2"]},"comp-hw-p1_19_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №1","Тест: Практика №1"]},"comp-hw-p1_21_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №2","Тест: Практика №2"]},"comp-test-p1_22_c1":{"category":["test","homework"],"title":["Тест: Теория №3","Письменное ДЗ: Теория №3"]},"comp-test-p1_22_c2":{"category":["test","homework"],"title":["Тест: Теория №4","Письменное ДЗ: Теория №4"]},"comp-hw-p1_26_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №3","Тест: Практика №3"]},"comp-hw-p1_28_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №4","Тест: Практика №4"]},"comp-test-p1_29_c1":{"category":["test","homework"],"title":["Тест: Теория №5","Письменное ДЗ: Теория №5"]},"comp-test-p1_29_c2":{"category":["test","homework"],"title":["Тест: Теория №6","Письменное ДЗ: Теория №6"]},"comp-hw-p2_02_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №5","Тест: Практика №5"]},"comp-hw-p2_04_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №6","Тест: Практика №6"]},"comp-test-p2_05_c1":{"category":["test","homework"],"title":["Тест: Теория №7","Письменное ДЗ: Теория №7"]},"comp-test-p2_05_c2":{"category":["test","homework"],"title":["Тест: Теория №8","Письменное ДЗ: Теория №8"]},"comp-hw-p2_09_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №7","Тест: Практика №7"]},"comp-hw-p2_11_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №8","Тест: Практика №8"]},"comp-test-p2_12_c1":{"category":["test","homework"],"title":["Тест: Теория №9","Письменное ДЗ: Теория №9"]},"comp-test-p2_12_c2":{"category":["test","homework"],"title":["Тест: Теория №10","Письменное ДЗ: Теория №10"]},"comp-hw-p2_16_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №9","Тест: Практика №9"]},"comp-hw-p2_18_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №10","Тест: Практика №10"]},"comp-test-p2_19_c1":{"category":["test","homework"],"title":["Тест: Теория №11","Письменное ДЗ: Теория №11"]},"comp-test-p2_19_c2":{"category":["test","homework"],"title":["Тест: Теория №12","Письменное ДЗ: Теория №12"]},"comp-hw-p3_23_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №11","Тест: Практика №11"]},"comp-hw-p3_25_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №12","Тест: Практика №12"]},"comp-test-p3_26_c1":{"category":["test","homework"],"title":["Тест: Теория №13","Письменное ДЗ: Теория №13"]},"comp-test-p3_26_c2":{"category":["test","homework"],"title":["Тест: Теория №14","Письменное ДЗ: Теория №14"]},"comp-hw-p3_30_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №13","Тест: Практика №13"]},"comp-hw-p3_02_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №14","Тест: Практика №14"]},"comp-test-p3_03_c1":{"category":["test","homework"],"title":["Тест: Теория №15","Письменное ДЗ: Теория №15"]},"comp-test-p3_03_c2":{"category":["test","homework"],"title":["Тест: Теория №16","Письменное ДЗ: Теория №16"]},"comp-hw-p3_07_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №15","Тест: Практика №15"]},"comp-hw-p3_09_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №16","Тест: Практика №16"]},"comp-test-p3_10_c1":{"category":["test","homework"],"title":["Тест: Теория №17","Письменное ДЗ: Теория №17"]},"comp-test-p3_10_c2":{"category":["test","homework"],"title":["Тест: Теория №18","Письменное ДЗ: Теория №18"]},"comp-hw-p4_14_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №17","Тест: Практика №17"]},"comp-hw-p4_16_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №18","Тест: Практика №18"]},"comp-test-p4_17_c2":{"category":["test","homework"],"title":["Тест: Теория №19","Письменное ДЗ: Теория №19"]},"comp-test-p4_17_c3":{"category":["test","homework"],"title":["Тест: Теория №20","Письменное ДЗ: Теория №20"]},"comp-hw-p4_21_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №19","Тест: Практика №19"]},"comp-hw-p4_23_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №20","Тест: Практика №20"]},"comp-test-p4_24_c1":{"category":["test","homework"],"title":["Тест: Теория №21","Письменное ДЗ: Теория №21"]},"comp-test-p4_24_c2":{"category":["test","homework"],"title":["Тест: Теория №22","Письменное ДЗ: Теория №22"]},"comp-hw-p4_28_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №21","Тест: Практика №21"]},"comp-hw-p4_30_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №22","Тест: Практика №22"]},"comp-test-p4_31_c1":{"category":["test","homework"],"title":["Тест: Теория №23","Письменное ДЗ: Теория №23"]},"comp-test-p4_31_c2":{"category":["test","homework"],"title":["Тест: Теория №24","Письменное ДЗ: Теория №24"]},"comp-hw-p5_04_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №23","Тест: Практика №23"]},"comp-hw-p5_06_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №24","Тест: Практика №24"]},"comp-test-p5_07_c1":{"category":["test","homework"],"title":["Тест: Теория №25","Письменное ДЗ: Теория №25"]},"comp-test-p5_07_c2":{"category":["test","homework"],"title":["Тест: Теория №26","Письменное ДЗ: Теория №26"]},"comp-hw-p5_11_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №25","Тест: Практика №25"]},"comp-hw-p5_13_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №26","Тест: Практика №26"]},"comp-test-p5_14_c1":{"category":["test","homework"],"title":["Тест: Теория №27","Письменное ДЗ: Теория №27"]},"comp-hw-p5_18_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Обобщающая практика по неорганике","Тест: Обобщающая практика по неорганике"]},"comp-hw-p5_20_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №27","Тест: Практика №27"]},"comp-test-p5_21_c1":{"category":["test","homework"],"title":["Тест: Теория №28","Письменное ДЗ: Теория №28"]},"comp-test-p5_21_c2":{"category":["test","homework"],"title":["Тест: Теория №29","Письменное ДЗ: Теория №29"]},"comp-hw-p6_25_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №28","Тест: Практика №28"]},"comp-hw-p6_27_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №29","Тест: Практика №29"]},"comp-test-p6_28_c1":{"category":["test","homework"],"title":["Тест: Теория №30","Письменное ДЗ: Теория №30"]},"comp-test-p6_28_c2":{"category":["test","homework"],"title":["Тест: Теория №31","Письменное ДЗ: Теория №31"]},"comp-hw-p6_02_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №30","Тест: Практика №30"]},"comp-hw-p6_04_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №31","Тест: Практика №31"]},"comp-test-p6_05_c1":{"category":["test","homework"],"title":["Тест: Теория №32","Письменное ДЗ: Теория №32"]},"comp-test-p6_05_c2":{"category":["test","homework"],"title":["Тест: Теория №33","Письменное ДЗ: Теория №33"]},"comp-hw-p6_09_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №32","Тест: Практика №32"]},"comp-hw-p6_11_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №33","Тест: Практика №33"]},"comp-test-p6_12_c1":{"category":["test","homework"],"title":["Тест: Теория №34","Письменное ДЗ: Теория №34"]},"comp-test-p6_12_c2":{"category":["test","homework"],"title":["Тест: Теория №35","Письменное ДЗ: Теория №35"]},"comp-hw-p7_16_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №34","Тест: Практика №34"]},"comp-hw-p7_18_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №35","Тест: Практика №35"]},"comp-test-p7_19_c1":{"category":["test","homework"],"title":["Тест: Теория №36","Письменное ДЗ: Теория №36"]},"comp-test-p7_19_c2":{"category":["test","homework"],"title":["Тест: Теория №37","Письменное ДЗ: Теория №37"]},"comp-hw-p7_23_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №36","Тест: Практика №36"]},"comp-hw-p7_25_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №37","Тест: Практика №37"]},"comp-test-p7_26_c1":{"category":["test","homework"],"title":["Тест: Теория №38","Письменное ДЗ: Теория №38"]},"comp-test-p7_26_c2":{"category":["test","homework"],"title":["Тест: Теория №39","Письменное ДЗ: Теория №39"]},"comp-hw-p7_06_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №38","Тест: Практика №38"]},"comp-hw-p7_08_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №39","Тест: Практика №39"]},"comp-test-p7_09_c1":{"category":["test","homework"],"title":["Тест: Теория №40","Письменное ДЗ: Теория №40"]},"comp-test-p7_09_c2":{"category":["test","homework"],"title":["Тест: Теория №41","Письменное ДЗ: Теория №41"]},"comp-hw-p8_13_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №40","Тест: Практика №40"]},"comp-hw-p8_15_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №41","Тест: Практика №41"]},"comp-test-p8_16_c1":{"category":["test","homework"],"title":["Тест: Теория №42","Письменное ДЗ: Теория №42"]},"comp-test-p8_16_c2":{"category":["test","homework"],"title":["Тест: Теория №43","Письменное ДЗ: Теория №43"]},"comp-hw-p8_20_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №42","Тест: Практика №42"]},"comp-hw-p8_22_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №43","Тест: Практика №43"]},"comp-test-p8_23_c1":{"category":["test","homework"],"title":["Тест: Теория №44","Письменное ДЗ: Теория №44"]},"comp-test-p8_23_c2":{"category":["test","homework"],"title":["Тест: Теория №45","Письменное ДЗ: Теория №45"]},"comp-hw-p8_27_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №44","Тест: Практика №44"]},"comp-hw-p8_29_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №45","Тест: Практика №45"]},"comp-test-p8_30_c1":{"category":["test","homework"],"title":["Тест: Теория №46","Письменное ДЗ: Теория №46"]},"comp-test-p8_30_c2":{"category":["test","homework"],"title":["Тест: Теория №47","Письменное ДЗ: Теория №47"]},"comp-hw-p9_03_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №46","Тест: Практика №46"]},"comp-hw-p9_05_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №47","Тест: Практика №47"]},"comp-test-p9_06_c2":{"category":["test","homework"],"title":["Тест: Теория №48","Письменное ДЗ: Теория №48"]},"comp-test-p9_06_c3":{"category":["test","homework"],"title":["Тест: Теория №49","Письменное ДЗ: Теория №49"]},"comp-hw-p9_10_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №48","Тест: Практика №48"]},"comp-hw-p9_12_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №49","Тест: Практика №49"]},"comp-test-p9_13_c1":{"category":["test","homework"],"title":["Тест: Теория №50","Письменное ДЗ: Теория №50"]},"comp-test-p9_13_c2":{"category":["test","homework"],"title":["Тест: Теория №51","Письменное ДЗ: Теория №51"]},"comp-hw-p9_17_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №50","Тест: Практика №50"]},"comp-hw-p9_19_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №51","Тест: Практика №51"]},"comp-test-p9_20_c1":{"category":["test","homework"],"title":["Тест: Теория №52","Письменное ДЗ: Теория №52"]},"comp-hw-p10_24_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Обобщающая практика по органике","Тест: Обобщающая практика по органике"]},"comp-hw-p10_26_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №52","Тест: Практика №52"]},"comp-test-p10_27_c1":{"category":["test","homework"],"title":["Тест: Теория №53","Письменное ДЗ: Теория №53"]},"comp-test-p10_27_c2":{"category":["test","homework"],"title":["Тест: Теория №54","Письменное ДЗ: Теория №54"]},"comp-hw-p10_03_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №53","Тест: Практика №53"]},"comp-hw-p10_05_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №54","Тест: Практика №54"]},"comp-test-p10_06_c1":{"category":["test","homework"],"title":["Тест: Теория №55","Письменное ДЗ: Теория №55"]},"comp-test-p10_06_c2":{"category":["test","homework"],"title":["Тест: Теория №56","Письменное ДЗ: Теория №56"]},"comp-hw-p10_10_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №55","Тест: Практика №55"]},"comp-hw-p10_12_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №56","Тест: Практика №56"]},"comp-test-p10_13_c1":{"category":["test","homework"],"title":["Тест: Теория №57","Письменное ДЗ: Теория №57"]},"comp-test-p10_13_c2":{"category":["test","homework"],"title":["Тест: Теория №58","Письменное ДЗ: Теория №58"]},"comp-hw-p11_17_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №57","Тест: Практика №57"]},"comp-hw-p11_19_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №58","Тест: Практика №58"]},"comp-test-p11_20_c1":{"category":["test","homework"],"title":["Тест: Теория №59","Письменное ДЗ: Теория №59"]},"comp-test-p11_20_c2":{"category":["test","homework"],"title":["Тест: Теория №60","Письменное ДЗ: Теория №60"]},"comp-hw-p11_24_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №59","Тест: Практика №59"]},"comp-hw-p11_26_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №60","Тест: Практика №60"]},"comp-test-p11_27_c1":{"category":["test","homework"],"title":["Тест: Теория №61","Письменное ДЗ: Теория №61"]},"comp-test-p11_27_c2":{"category":["test","homework"],"title":["Тест: Теория №62","Письменное ДЗ: Теория №62"]},"comp-hw-p11_31_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №61","Тест: Практика №61"]},"comp-hw-p11_02_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №62","Тест: Практика №62"]},"comp-test-p11_03_c1":{"category":["test","homework"],"title":["Тест: Теория №63","Письменное ДЗ: Теория №63"]},"comp-hw-p12_07_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №63","Тест: Практика №63"]},"comp-hw-p12_09_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Обобщающая практика по химии элементов","Тест: Обобщающая практика по химии элементов"]},"comp-test-p12_10_c1":{"category":["test","homework"],"title":["Тест: Теория №64","Письменное ДЗ: Теория №64"]},"comp-hw-p12_14_c1":{"category":["homework","test"],"title":["Письменное ДЗ: Практика №64","Тест: Практика №64"]}};
+
+  function migrateChemCompanions() {
+    const items = Store.get('items');
+    if (!items || Store.get('meta/fixChemCompanions2026')) return;
+    const updates = { 'meta/fixChemCompanions2026': true };
+    Object.keys(CHEM_COMPANION_FIX_2026).forEach(id => {
+      const item = items[id];
+      if (!item) return;
+      const fix = CHEM_COMPANION_FIX_2026[id];
+      Object.keys(fix).forEach(field => {
+        const [from, to] = fix[field];
+        if ((item[field] == null ? null : item[field]) === from) updates[`items/${id}/${field}`] = to;
+      });
+    });
+    Store.update(updates);
+  }
+
+  // --------------------------------------------------------------- дедлайны
+
+  // Определено по разбору формул, которые прислал пользователь на конкретных
+  // примерах дат. Дни считаются от даты плашки (23:59 того же часового пояса,
+  // что и остальное расписание). Там, где пользователь явно не назвал число,
+  // взято по аналогии — см. итоговое сообщение, где это оговорено отдельно.
+  const DEADLINE_DAYS = {
+    mock: 6,          // пробник: выложен «в 00:00 N числа» → дедлайн 23:59 (N+6)
+    attestation: 7,   // рубежная аттестация: +неделя
+    reviewTest: 4,    // тест к разбору произведения: +4 дня
+    theoryTest: { bio: 4, rus: 4 },          // тест к теории (био/рус)
+    practiceHw: { bio: 3, rus: 7 },          // ДЗ/сочинение к практике (био: 3 дня, рус: неделя — не названо явно)
+    chem: 7           // химия: и ДЗ к теории, и тест к практике — от даты теории того же номера, +7 дней
+  };
+
+  function itemNumber(title) {
+    const m = /№\s*(\d+(?:\.\d+)?)/.exec(title || '');
+    return m ? m[1].split('.')[0] : null;
+  }
+
+  function parseDateKey(key) {
+    const [y, m, d] = key.split('-').map(Number);
+    return new Date(y, m - 1, d);
+  }
+
+  function addDays(date, n) {
+    const d = new Date(date);
+    d.setDate(d.getDate() + n);
+    return d;
+  }
+
+  const DEADLINE_MONTHS = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+
+  function formatDeadline(date) {
+    return `до ${date.getDate()} ${DEADLINE_MONTHS[date.getMonth()]}, 23:59`;
+  }
+
+  // Строим один раз за отрисовку: карту id→плашка и «дату теории по химии для номера N»
+  // (тест к практике №N по химии считается от даты ТЕОРИИ №N, а не от своей собственной).
+  function buildDeadlineContext(itemsList) {
+    const byId = {};
+    const chemTheoryDate = {};
+    itemsList.forEach(it => {
+      byId[it.id] = it;
+      if (it.subject === 'chem' && it.category === 'theory' && it.date && it.date !== 'backlog') {
+        const n = itemNumber(it.title);
+        if (n && !chemTheoryDate[n]) chemTheoryDate[n] = it.date;
+      }
+    });
+    return { byId, chemTheoryDate };
+  }
+
+  function deadlineFor(it, ctx) {
+    if (!it.date || it.date === 'backlog') return null;
+    if (it.category === 'mock') return formatDeadline(addDays(parseDateKey(it.date), DEADLINE_DAYS.mock));
+    if (it.category === 'attestation') return formatDeadline(addDays(parseDateKey(it.date), DEADLINE_DAYS.attestation));
+    if (!it.isCompanion) return null;
+
+    if (it.subject === 'chem') {
+      const num = itemNumber(it.title);
+      const theoryDateKey = (num && ctx.chemTheoryDate[num]) || it.date;
+      return formatDeadline(addDays(parseDateKey(theoryDateKey), DEADLINE_DAYS.chem));
+    }
+
+    const parent = it.parentId ? ctx.byId[it.parentId] : null;
+    const parentCategory = parent ? parent.category : null;
+    if (parentCategory === 'review') {
+      return formatDeadline(addDays(parseDateKey(it.date), DEADLINE_DAYS.reviewTest));
+    }
+    if (parentCategory === 'theory') {
+      const days = DEADLINE_DAYS.theoryTest[it.subject];
+      return days ? formatDeadline(addDays(parseDateKey(it.date), days)) : null;
+    }
+    if (parentCategory === 'practice') {
+      const days = DEADLINE_DAYS.practiceHw[it.subject];
+      return days ? formatDeadline(addDays(parseDateKey(it.date), days)) : null;
+    }
+    return null;
+  }
+
+  let deadlineCtx = null;
+
   // ------------------------------------------------------------------ отрисовка
 
   // Помечаем пары «занятие → его тест/ДЗ», стоящие подряд, чтобы соединить их полоской
@@ -231,6 +358,7 @@
     const category = CATEGORIES[it.category] || '';
     const icon = ICONS[it.icon];
     const typeLabel = it.isCompanion ? (it.category === 'homework' ? 'ДЗ' : 'Тест') : category;
+    const deadline = deadlineCtx ? deadlineFor(it, deadlineCtx) : null;
     return `
       <div class="card ${it.subject || 'general'} cat-${it.category || 'theory'}${it.isCompanion ? ' is-companion' : ''}${it.completed ? ' is-done' : ''}${extraClass ? ' ' + extraClass : ''}" data-id="${escapeHtml(it.id)}">
         <div class="card-top">
@@ -242,6 +370,7 @@
         </div>
         <div class="card-title">${escapeHtml(it.title)}</div>
         ${it.subtitle ? `<div class="card-sub">${escapeHtml(it.subtitle)}</div>` : ''}
+        ${deadline ? `<div class="card-deadline">${escapeHtml(deadline)}</div>` : ''}
       </div>`;
   }
 
@@ -257,6 +386,7 @@
       renderBoard();
       renderBacklog();
       renderProgress();
+      renderLoad();
     };
     requestAnimationFrame(run);
     // Кадры анимации не приходят в фоновой вкладке — дорисуем по таймеру
@@ -318,43 +448,95 @@
     return bars.length ? `<div class="week-banners">${bars.join('')}</div>` : '';
   }
 
+  // Все 12 периодов рендерятся один под другим в общую ленту — плашку можно
+  // перетащить прямо из одного периода в другой, без переключения вкладок.
   function renderBoard() {
-    const period = currentPeriod();
     const weeksEl = $('#weeks');
-    if (!period || !weeksEl) return;
+    if (!weeksEl) return;
     if (drag.active) return; // не перерисовываем под пальцем — дорисуем после броска
 
     const byDate = itemsByDate();
-    const dates = Object.keys(period.days);
-    const weeks = [];
-    for (let i = 0; i < dates.length; i += 7) weeks.push(dates.slice(i, i + 7));
+    const allItemsList = allItems();
+    const windows = paymentWindows(allItemsList);
+    deadlineCtx = buildDeadlineContext(allItemsList);
 
-    const windows = paymentWindows(allItems());
-    weeksEl.innerHTML = weeks.map(week => `
-      ${weekBannersHtml(week, windows)}
-      <div class="week">
-        ${week.map(dateKey => {
-          const day = period.days[dateKey];
-          const list = (byDate[dateKey] || []).filter(it => !isPayment(it) && isVisible(it));
-          const isToday = dateKey === todayKey();
-          return `
-            <section class="day${isToday ? ' is-today' : ''}${list.length ? '' : ' is-empty'}" data-date="${dateKey}">
-              <header class="day-head">
-                <span class="day-name">${escapeHtml(day.dayName)}</span>
-                <span class="day-num">${day.dayNum}</span>
-                <span class="day-month">${escapeHtml(day.month)}</span>
-                <button class="day-add" type="button" data-add="${dateKey}" aria-label="Добавить плашку">+</button>
-              </header>
-              <div class="day-list" data-drop="${dateKey}">
-                ${linkedCardsHtml(list)}
-              </div>
-            </section>`;
-        }).join('')}
-      </div>`).join('');
+    weeksEl.innerHTML = COURSE.map((period, periodIdx) => {
+      const dates = Object.keys(period.days);
+      const weeks = [];
+      for (let i = 0; i < dates.length; i += 7) weeks.push(dates.slice(i, i + 7));
+
+      const weeksHtml = weeks.map(week => `
+        ${weekBannersHtml(week, windows)}
+        <div class="week">
+          ${week.map(dateKey => {
+            const day = period.days[dateKey];
+            const list = (byDate[dateKey] || []).filter(it => !isPayment(it) && isVisible(it));
+            const isToday = dateKey === todayKey();
+            return `
+              <section class="day${isToday ? ' is-today' : ''}${list.length ? '' : ' is-empty'}" data-date="${dateKey}">
+                <header class="day-head">
+                  <span class="day-name">${escapeHtml(day.dayName)}</span>
+                  <span class="day-num">${day.dayNum}</span>
+                  <span class="day-month">${escapeHtml(day.month)}</span>
+                  <button class="day-add" type="button" data-add="${dateKey}" aria-label="Добавить плашку">+</button>
+                </header>
+                <div class="day-list" data-drop="${dateKey}">
+                  ${linkedCardsHtml(list)}
+                </div>
+              </section>`;
+          }).join('')}
+        </div>`).join('');
+
+      return `
+        <section class="period-block" id="period-${period.id}" data-period-index="${periodIdx}">
+          <header class="period-divider">
+            <span class="period-divider-num">${String(periodIdx + 1).padStart(2, '0')}</span>
+            <span class="period-divider-name">${escapeHtml(period.name)}</span>
+          </header>
+          ${weeksHtml}
+        </section>`;
+    }).join('');
 
     $('#board').classList.toggle('layers-hidden', filtersActive());
     $('#filter-note').hidden = !filtersActive();
+    computePeriodLayout();
     updateBoardSize();
+  }
+
+  // -------------------------------------------------------- раскладка периодов в общей ленте
+
+  let periodLayoutCache = [];
+
+  function computePeriodLayout() {
+    periodLayoutCache = COURSE.map((p, i) => {
+      const el = document.getElementById('period-' + p.id);
+      return { id: p.id, index: i, top: el ? el.offsetTop : 0, height: el ? el.offsetHeight : 0 };
+    });
+  }
+
+  function periodTop(id) {
+    const p = periodLayoutCache.find(x => x.id === id);
+    return p ? p.top : 0;
+  }
+
+  // Какой период занимает данную координату Y на общей доске (в логических пикселях,
+  // без масштаба) — используется стилусом и фото, чтобы понять, в какой период
+  // складывать штрих или картинку.
+  function periodAt(y) {
+    if (!periodLayoutCache.length) return { id: COURSE[0] ? COURSE[0].id : 'default', index: 0, top: 0, height: 0 };
+    for (const p of periodLayoutCache) {
+      if (y >= p.top && y < p.top + p.height) return p;
+    }
+    return y < periodLayoutCache[0].top ? periodLayoutCache[0] : periodLayoutCache[periodLayoutCache.length - 1];
+  }
+
+  // Какой период сейчас читает пользователь — примерно на трети экрана сверху
+  function periodIndexInView() {
+    const sizer = $('#board-sizer');
+    if (!sizer) return ui.periodIndex;
+    const sr = sizer.getBoundingClientRect();
+    const localY = (window.innerHeight * 0.35 - sr.top) / (ui.zoom || 1);
+    return periodAt(localY).index;
   }
 
   function renderBacklog() {
@@ -387,6 +569,8 @@
     $$('[data-progress-count]').forEach(el => { el.textContent = `${done} из ${total}`; });
   }
 
+  // Вкладки периодов строятся один раз — это быстрый переход к нужному месяцу
+  // на общей ленте, а не переключение того, что показано (как было раньше).
   function renderPeriods() {
     const tabs = $('#period-tabs');
     tabs.innerHTML = COURSE.map((p, i) => `
@@ -394,29 +578,73 @@
         <span class="period-num">${String(i + 1).padStart(2, '0')}</span>
         <span class="period-name">${escapeHtml(p.name)}</span>
       </button>`).join('');
+    updatePeriodChrome();
+  }
+
+  // Обновляет всё, что зависит от «текущего» (видимого на экране) периода:
+  // заголовок, счётчик, активную вкладку и среднюю нагрузку в день.
+  function updatePeriodChrome() {
     const p = currentPeriod();
     $('#period-title').textContent = p ? p.name : '';
     $('#period-counter').textContent = `Период ${ui.periodIndex + 1} из ${COURSE.length}`;
-    const active = tabs.querySelector('.is-active');
+    $$('#period-tabs .period-tab').forEach((el, i) => el.classList.toggle('is-active', i === ui.periodIndex));
+    const active = $('#period-tabs .is-active');
     if (active) active.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
+    renderLoad();
   }
 
-  function selectPeriod(index, animate) {
+  // Прокручивает страницу к периоду (клик по вкладке, стрелки ‹ ›, стрелки клавиатуры)
+  function selectPeriod(index) {
     if (index < 0 || index >= COURSE.length) return;
-    const changed = index !== ui.periodIndex;
+    const el = document.getElementById('period-' + COURSE[index].id);
+    if (!el) return;
+    window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 84, behavior: 'smooth' });
     ui.periodIndex = index;
     lsSet('hb_period', String(index));
-    renderPeriods();
-    renderBoard();
-    if (changed) {
-      document.dispatchEvent(new CustomEvent('hb:period', { detail: { periodId: currentPeriod().id } }));
-      if (animate !== false) {
-        const board = $('#board');
-        board.classList.remove('is-switching');
-        void board.offsetWidth;
-        board.classList.add('is-switching');
-      }
-    }
+    updatePeriodChrome();
+  }
+
+  // Мгновенный прыжок к периоду без анимации — только при первой загрузке страницы
+  function jumpToPeriod(index) {
+    const p = COURSE[index] || COURSE[0];
+    const el = p && document.getElementById('period-' + p.id);
+    if (el) window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - 84);
+  }
+
+  let viewPeriodRaf = null;
+  function scheduleViewPeriodUpdate() {
+    if (viewPeriodRaf) return;
+    viewPeriodRaf = requestAnimationFrame(() => {
+      viewPeriodRaf = null;
+      const idx = periodIndexInView();
+      if (idx === ui.periodIndex) return;
+      ui.periodIndex = idx;
+      lsSet('hb_period', String(idx));
+      updatePeriodChrome();
+    });
+  }
+
+  // -------------------------------------------------------- средняя нагрузка в день
+
+  function computePeriodLoadMinutes(period) {
+    const byDate = itemsByDate();
+    let total = 0;
+    Object.keys(period.days).forEach(dateKey => {
+      (byDate[dateKey] || []).forEach(it => { if (it.category !== 'payment') total += itemDuration(it); });
+    });
+    return { total, days: Object.keys(period.days).length };
+  }
+
+  function renderLoad() {
+    const period = currentPeriod();
+    const valueEl = $('[data-load]');
+    const labelEl = $('[data-load-label]');
+    if (!valueEl || !period) return;
+    const { total, days } = computePeriodLoadMinutes(period);
+    const perDay = days ? total / days : 0;
+    const hours = perDay / 60;
+    valueEl.textContent = hours >= 1 ? `${(Math.round(hours * 10) / 10)}`.replace('.', ',') + ' ч' : `${Math.round(perDay)} мин`;
+    if (labelEl) labelEl.textContent = `в день · ${period.name}`;
   }
 
   function todayKey() {
@@ -1164,10 +1392,13 @@
       if (roots.has('/') || roots.has('items')) {
         migrateSeptember10();
         migratePdfCheck();
+        migrateChemCompanions();
         requestRender();
       }
       if (roots.has('/') || roots.has('presence')) renderSyncStatus();
     });
+
+    window.addEventListener('scroll', scheduleViewPeriodUpdate, { passive: true });
 
     window.HB = {
       BOARD,
@@ -1178,13 +1409,20 @@
       setZoom,
       updateBoardSize,
       openModal,
-      closeModal
+      closeModal,
+      periodTop,
+      periodAt,
+      periodLayout: () => periodLayoutCache
     };
     document.dispatchEvent(new CustomEvent('hb:ready'));
 
     renderBoard();
     window.__appBooted = true;
     document.body.classList.add('is-loaded');
+    // Если человек уже сам начал листать, пока грузились данные, — не перебиваем его прыжком
+    let userScrolledDuringBoot = false;
+    const noticeUserScroll = () => { userScrolledDuringBoot = true; };
+    window.addEventListener('scroll', noticeUserScroll, { passive: true, once: true });
     try {
       await Store.init(buildSeed);
     } catch (err) {
@@ -1193,6 +1431,11 @@
     }
     requestRender();
     renderSyncStatus();
+    window.removeEventListener('scroll', noticeUserScroll);
+    // Мгновенно прокручиваем к сохранённому/сегодняшнему периоду — один раз, без анимации,
+    // и только если человек не успел сам прокрутить страницу, пока грузились данные
+    if (!userScrolledDuringBoot) jumpToPeriod(ui.periodIndex);
+    updatePeriodChrome();
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);

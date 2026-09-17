@@ -247,9 +247,11 @@ em[data-backlog-count], em[data-sync-peers], .count {
 
 .hero-stats {
   position: relative; z-index: 2;
-  display: grid; grid-template-columns: 1.1fr repeat(3, 1fr); gap: 10px;
-  width: min(880px, 100%); margin: 34px 0 0;
+  display: grid; grid-template-columns: 1.1fr repeat(3, 1fr) 1fr; gap: 10px;
+  width: min(1040px, 100%); margin: 34px 0 0;
 }
+.stat.load { --c: var(--accent); }
+.stat.load .stat-value { font-size: 22px; }
 .stat {
   display: grid; gap: 10px; align-content: center; text-align: left;
   padding: 14px 16px; border-radius: var(--radius-sm);
@@ -406,7 +408,18 @@ main { position: relative; }
 .weeks { display: grid; gap: 8px; padding: 16px; }
 .week { display: grid; grid-template-columns: repeat(7, 200px); gap: 8px; }
 
-.board.is-switching .weeks { animation: board-in 0.45s var(--ease); }
+/* Все 12 периодов идут один под другим в общей ленте */
+.period-block { display: grid; gap: 8px; }
+.period-divider {
+  display: flex; align-items: baseline; gap: 10px;
+  padding: 28px 4px 6px; margin-top: 14px; border-top: 1px solid var(--line);
+}
+.period-block:first-child .period-divider { margin-top: 0; padding-top: 2px; border-top: 0; }
+.period-divider-num {
+  display: grid; place-items: center; flex: none; width: 26px; height: 26px; border-radius: 50%;
+  background: var(--surface-3); font-size: 10px; font-weight: 800; color: var(--faint);
+}
+.period-divider-name { font-size: 15px; font-weight: 800; letter-spacing: -0.01em; color: var(--text); }
 
 .day {
   display: flex; flex-direction: column; min-height: 132px;
@@ -505,6 +518,10 @@ main { position: relative; }
 .card-sub {
   margin-top: 3px; font-size: 11px; line-height: 1.3; color: color-mix(in srgb, var(--text) 72%, transparent);
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.card-deadline {
+  margin-top: 4px; font-size: 9px; font-weight: 700; letter-spacing: 0.02em;
+  color: color-mix(in srgb, var(--text) 55%, transparent);
 }
 
 .card.is-companion { --fill: 14%; --edge: 38%; border-style: dashed; }

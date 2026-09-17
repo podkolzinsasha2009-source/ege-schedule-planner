@@ -96,11 +96,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p1_15_c1",
-            "title": "Тест: Теория №1",
+            "id": "comp-hw-p1_15_c1",
+            "title": "Письменное ДЗ: Теория №1",
             "subtitle": "Введение в химию. Работа с ПТ. Строение атома.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -119,11 +119,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p1_15_c2",
-            "title": "Тест: Теория №2",
+            "id": "comp-hw-p1_15_c2",
+            "title": "Письменное ДЗ: Теория №2",
             "subtitle": "Электронные конфигурации.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -351,11 +351,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p1_19_c1",
-            "title": "Письменное ДЗ: Практика №1",
+            "id": "comp-test-p1_19_c1",
+            "title": "Тест: Практика №1",
             "subtitle": "Введение в химию. Работа с ПТ. Строение атома.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -434,11 +434,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p1_21_c1",
-            "title": "Письменное ДЗ: Практика №2",
+            "id": "comp-test-p1_21_c1",
+            "title": "Тест: Практика №2",
             "subtitle": "Электронные конфигурации.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -510,11 +510,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p1_22_c1",
-            "title": "Тест: Теория №3",
+            "id": "comp-hw-p1_22_c1",
+            "title": "Письменное ДЗ: Теория №3",
             "subtitle": "Электронные конфигурации. Продолжение.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -533,11 +533,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p1_22_c2",
-            "title": "Тест: Теория №4",
+            "id": "comp-hw-p1_22_c2",
+            "title": "Письменное ДЗ: Теория №4",
             "subtitle": "Химические связи. Кристаллические решётки.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -710,11 +710,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p1_26_c1",
-            "title": "Письменное ДЗ: Практика №3",
+            "id": "comp-test-p1_26_c1",
+            "title": "Тест: Практика №3",
             "subtitle": "Электронные конфигурации. Продолжение.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -816,11 +816,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p1_28_c1",
-            "title": "Письменное ДЗ: Практика №4",
+            "id": "comp-test-p1_28_c1",
+            "title": "Тест: Практика №4",
             "subtitle": "Химические связи. Кристаллические решётки.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -915,11 +915,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p1_29_c1",
-            "title": "Тест: Теория №5",
+            "id": "comp-hw-p1_29_c1",
+            "title": "Письменное ДЗ: Теория №5",
             "subtitle": "Степень окисления.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -938,11 +938,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p1_29_c2",
-            "title": "Тест: Теория №6",
+            "id": "comp-hw-p1_29_c2",
+            "title": "Письменное ДЗ: Теория №6",
             "subtitle": "Номенклатура бинарных соединений. Валентность. Структурные формулы.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -1086,11 +1086,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p2_02_c1",
-            "title": "Письменное ДЗ: Практика №5",
+            "id": "comp-test-p2_02_c1",
+            "title": "Тест: Практика №5",
             "subtitle": "Степень окисления.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -1203,11 +1203,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p2_04_c1",
-            "title": "Письменное ДЗ: Практика №6",
+            "id": "comp-test-p2_04_c1",
+            "title": "Тест: Практика №6",
             "subtitle": "Номенклатура бинарных соединений. Валентность. Структурные формулы.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -1290,11 +1290,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p2_05_c1",
-            "title": "Тест: Теория №7",
+            "id": "comp-hw-p2_05_c1",
+            "title": "Письменное ДЗ: Теория №7",
             "subtitle": "Чистые вещества и смеси. Растворы. Виды растворов. Массовая доля. Задача 26.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -1313,11 +1313,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p2_05_c2",
-            "title": "Тест: Теория №8",
+            "id": "comp-hw-p2_05_c2",
+            "title": "Письменное ДЗ: Теория №8",
             "subtitle": "Классификация и номенклатура неорганических соединений.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -1454,11 +1454,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p2_09_c1",
-            "title": "Письменное ДЗ: Практика №7",
+            "id": "comp-test-p2_09_c1",
+            "title": "Тест: Практика №7",
             "subtitle": "Чистые вещества и смеси. Растворы. Виды растворов. Массовая доля. Задача 26.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -1570,11 +1570,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p2_11_c1",
-            "title": "Письменное ДЗ: Практика №8",
+            "id": "comp-test-p2_11_c1",
+            "title": "Тест: Практика №8",
             "subtitle": "Классификация и номенклатура неорганических соединений.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -1680,11 +1680,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p2_12_c1",
-            "title": "Тест: Теория №9",
+            "id": "comp-hw-p2_12_c1",
+            "title": "Письменное ДЗ: Теория №9",
             "subtitle": "Периодический закон.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -1703,11 +1703,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p2_12_c2",
-            "title": "Тест: Теория №10",
+            "id": "comp-hw-p2_12_c2",
+            "title": "Письменное ДЗ: Теория №10",
             "subtitle": "Химическая реакция. Уравнение химической реакции. Классификация реакций. Скорость реакций.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -1878,11 +1878,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p2_16_c1",
-            "title": "Письменное ДЗ: Практика №9",
+            "id": "comp-test-p2_16_c1",
+            "title": "Тест: Практика №9",
             "subtitle": "Периодический закон.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -1961,11 +1961,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p2_18_c1",
-            "title": "Письменное ДЗ: Практика №10",
+            "id": "comp-test-p2_18_c1",
+            "title": "Тест: Практика №10",
             "subtitle": "Химическая реакция. Уравнение химической реакции. Классификация реакций. Скорость реакций.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -2048,11 +2048,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p2_19_c1",
-            "title": "Тест: Теория №11",
+            "id": "comp-hw-p2_19_c1",
+            "title": "Письменное ДЗ: Теория №11",
             "subtitle": "Формулы в химии. Расчёты по уравнению реакции. Простейшие задачи.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -2071,11 +2071,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p2_19_c2",
-            "title": "Тест: Теория №12",
+            "id": "comp-hw-p2_19_c2",
+            "title": "Письменное ДЗ: Теория №12",
             "subtitle": "Основы ОВР. Электронный баланс.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -2219,11 +2219,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p3_23_c1",
-            "title": "Письменное ДЗ: Практика №11",
+            "id": "comp-test-p3_23_c1",
+            "title": "Тест: Практика №11",
             "subtitle": "Формулы в химии. Расчёты по уравнению реакции. Простейшие задачи.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -2313,11 +2313,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p3_25_c1",
-            "title": "Письменное ДЗ: Практика №12",
+            "id": "comp-test-p3_25_c1",
+            "title": "Тест: Практика №12",
             "subtitle": "Основы ОВР. Электронный баланс.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -2354,11 +2354,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p3_26_c1",
-            "title": "Тест: Теория №13",
+            "id": "comp-hw-p3_26_c1",
+            "title": "Письменное ДЗ: Теория №13",
             "subtitle": "Химические свойства оксидов: основных и кислотных.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -2377,11 +2377,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p3_26_c2",
-            "title": "Тест: Теория №14",
+            "id": "comp-hw-p3_26_c2",
+            "title": "Письменное ДЗ: Теория №14",
             "subtitle": "Химические свойства оснований.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -2565,11 +2565,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p3_30_c1",
-            "title": "Письменное ДЗ: Практика №13",
+            "id": "comp-test-p3_30_c1",
+            "title": "Тест: Практика №13",
             "subtitle": "Химические свойства оксидов: основных и кислотных.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -2648,11 +2648,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p3_02_c1",
-            "title": "Письменное ДЗ: Практика №14",
+            "id": "comp-test-p3_02_c1",
+            "title": "Тест: Практика №14",
             "subtitle": "Химические свойства оснований.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -2734,11 +2734,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p3_03_c1",
-            "title": "Тест: Теория №15",
+            "id": "comp-hw-p3_03_c1",
+            "title": "Письменное ДЗ: Теория №15",
             "subtitle": "Химические свойства кислот. Кислоты-окислители.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -2757,11 +2757,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p3_03_c2",
-            "title": "Тест: Теория №16",
+            "id": "comp-hw-p3_03_c2",
+            "title": "Письменное ДЗ: Теория №16",
             "subtitle": "Выход реакции. Примеси. Задача 28.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -2911,11 +2911,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p3_07_c1",
-            "title": "Письменное ДЗ: Практика №15",
+            "id": "comp-test-p3_07_c1",
+            "title": "Тест: Практика №15",
             "subtitle": "Химические свойства кислот. Кислоты-окислители.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -3028,11 +3028,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p3_09_c1",
-            "title": "Письменное ДЗ: Практика №16",
+            "id": "comp-test-p3_09_c1",
+            "title": "Тест: Практика №16",
             "subtitle": "Выход реакции. Примеси. Задача 28.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -3149,11 +3149,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p3_10_c1",
-            "title": "Тест: Теория №17",
+            "id": "comp-hw-p3_10_c1",
+            "title": "Письменное ДЗ: Теория №17",
             "subtitle": "Амфотерность. Химические свойства амфотерных оксидов и гидроксидов.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -3172,11 +3172,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p3_10_c2",
-            "title": "Тест: Теория №18",
+            "id": "comp-hw-p3_10_c2",
+            "title": "Письменное ДЗ: Теория №18",
             "subtitle": "Химические свойства средних солей.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -3364,11 +3364,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p4_14_c1",
-            "title": "Письменное ДЗ: Практика №17",
+            "id": "comp-test-p4_14_c1",
+            "title": "Тест: Практика №17",
             "subtitle": "Амфотерность. Химические свойства амфотерных оксидов и гидроксидов.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -3481,11 +3481,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p4_16_c1",
-            "title": "Письменное ДЗ: Практика №18",
+            "id": "comp-test-p4_16_c1",
+            "title": "Тест: Практика №18",
             "subtitle": "Химические свойства средних солей.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -3579,11 +3579,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p4_17_c2",
-            "title": "Тест: Теория №19",
+            "id": "comp-hw-p4_17_c2",
+            "title": "Письменное ДЗ: Теория №19",
             "subtitle": "Химические свойства кислых, основных и комплексных солей.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -3602,11 +3602,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p4_17_c3",
-            "title": "Тест: Теория №20",
+            "id": "comp-hw-p4_17_c3",
+            "title": "Письменное ДЗ: Теория №20",
             "subtitle": "Задача 23. Задача 27.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -3733,11 +3733,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p4_21_c1",
-            "title": "Письменное ДЗ: Практика №19",
+            "id": "comp-test-p4_21_c1",
+            "title": "Тест: Практика №19",
             "subtitle": "Химические свойства кислых, основных и комплексных солей.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -3850,11 +3850,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p4_23_c1",
-            "title": "Письменное ДЗ: Практика №20",
+            "id": "comp-test-p4_23_c1",
+            "title": "Тест: Практика №20",
             "subtitle": "Задача 23. Задача 27.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -3960,11 +3960,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p4_24_c1",
-            "title": "Тест: Теория №21",
+            "id": "comp-hw-p4_24_c1",
+            "title": "Письменное ДЗ: Теория №21",
             "subtitle": "ТЭД. РИО. Признаки реакций.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -3983,11 +3983,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p4_24_c2",
-            "title": "Тест: Теория №22",
+            "id": "comp-hw-p4_24_c2",
+            "title": "Письменное ДЗ: Теория №22",
             "subtitle": "Гидролиз солей. Необратимый гидролиз бинарных соединений.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -4124,11 +4124,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p4_28_c1",
-            "title": "Письменное ДЗ: Практика №21",
+            "id": "comp-test-p4_28_c1",
+            "title": "Тест: Практика №21",
             "subtitle": "ТЭД. РИО. Признаки реакций.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -4230,11 +4230,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p4_30_c1",
-            "title": "Письменное ДЗ: Практика №22",
+            "id": "comp-test-p4_30_c1",
+            "title": "Тест: Практика №22",
             "subtitle": "Гидролиз солей. Необратимый гидролиз бинарных соединений.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -4317,11 +4317,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p4_31_c1",
-            "title": "Тест: Теория №23",
+            "id": "comp-hw-p4_31_c1",
+            "title": "Письменное ДЗ: Теория №23",
             "subtitle": "Электролиз.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -4340,11 +4340,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p4_31_c2",
-            "title": "Тест: Теория №24",
+            "id": "comp-hw-p4_31_c2",
+            "title": "Письменное ДЗ: Теория №24",
             "subtitle": "Задача 34.1. Введение в 34 задачу. Избыток и недостаток. Расчёты по нескольким реакциям.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -4488,11 +4488,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p5_04_c1",
-            "title": "Письменное ДЗ: Практика №23",
+            "id": "comp-test-p5_04_c1",
+            "title": "Тест: Практика №23",
             "subtitle": "Электролиз.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -4616,11 +4616,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p5_06_c1",
-            "title": "Письменное ДЗ: Практика №24",
+            "id": "comp-test-p5_06_c1",
+            "title": "Тест: Практика №24",
             "subtitle": "Задача 34.1. Введение в 34 задачу. Избыток и недостаток. Расчёты по нескольким реакциям.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -4703,11 +4703,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p5_07_c1",
-            "title": "Тест: Теория №25",
+            "id": "comp-hw-p5_07_c1",
+            "title": "Письменное ДЗ: Теория №25",
             "subtitle": "Химическое равновесие.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -4726,11 +4726,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p5_07_c2",
-            "title": "Тест: Теория №26",
+            "id": "comp-hw-p5_07_c2",
+            "title": "Письменное ДЗ: Теория №26",
             "subtitle": "Задача 34.2. Последовательность реакций. Порции. Расчёт массы конечного раствора.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -4913,11 +4913,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p5_11_c1",
-            "title": "Письменное ДЗ: Практика №25",
+            "id": "comp-test-p5_11_c1",
+            "title": "Тест: Практика №25",
             "subtitle": "Химическое равновесие.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -5041,11 +5041,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p5_13_c1",
-            "title": "Письменное ДЗ: Практика №26",
+            "id": "comp-test-p5_13_c1",
+            "title": "Тест: Практика №26",
             "subtitle": "Задача 34.2. Последовательность реакций. Порции. Расчёт массы конечного раствора.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -5116,11 +5116,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p5_14_c1",
-            "title": "Тест: Теория №27",
+            "id": "comp-hw-p5_14_c1",
+            "title": "Письменное ДЗ: Теория №27",
             "subtitle": "Физические и химические свойства простых веществ.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -5315,11 +5315,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p5_18_c1",
-            "title": "Письменное ДЗ: Обобщающая практика по неорганике",
+            "id": "comp-test-p5_18_c1",
+            "title": "Тест: Обобщающая практика по неорганике",
             "subtitle": "Химия",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -5432,11 +5432,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p5_20_c1",
-            "title": "Письменное ДЗ: Практика №27",
+            "id": "comp-test-p5_20_c1",
+            "title": "Тест: Практика №27",
             "subtitle": "Физические и химические свойства простых веществ.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -5519,11 +5519,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p5_21_c1",
-            "title": "Тест: Теория №28",
+            "id": "comp-hw-p5_21_c1",
+            "title": "Письменное ДЗ: Теория №28",
             "subtitle": "Основы органической химии.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -5542,11 +5542,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p5_21_c2",
-            "title": "Тест: Теория №29",
+            "id": "comp-hw-p5_21_c2",
+            "title": "Письменное ДЗ: Теория №29",
             "subtitle": "Задача 33 (1). Атомарность. Способы нахождения формулы вещества.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -5735,11 +5735,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p6_25_c1",
-            "title": "Письменное ДЗ: Практика №28",
+            "id": "comp-test-p6_25_c1",
+            "title": "Тест: Практика №28",
             "subtitle": "Основы органической химии.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -5817,11 +5817,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p6_27_c1",
-            "title": "Письменное ДЗ: Практика №29",
+            "id": "comp-test-p6_27_c1",
+            "title": "Тест: Практика №29",
             "subtitle": "Задача 33 (1). Атомарность. Способы нахождения формулы вещества.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -5892,11 +5892,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p6_28_c1",
-            "title": "Тест: Теория №30",
+            "id": "comp-hw-p6_28_c1",
+            "title": "Письменное ДЗ: Теория №30",
             "subtitle": "Алканы.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -5915,11 +5915,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p6_28_c2",
-            "title": "Тест: Теория №31",
+            "id": "comp-hw-p6_28_c2",
+            "title": "Письменное ДЗ: Теория №31",
             "subtitle": "Задача 34.3. Электролиз. Растворимость. Кристаллогидраты.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -6089,11 +6089,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p6_02_c1",
-            "title": "Письменное ДЗ: Практика №30",
+            "id": "comp-test-p6_02_c1",
+            "title": "Тест: Практика №30",
             "subtitle": "Алканы.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -6182,11 +6182,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p6_04_c1",
-            "title": "Письменное ДЗ: Практика №31",
+            "id": "comp-test-p6_04_c1",
+            "title": "Тест: Практика №31",
             "subtitle": "Задача 34.3. Электролиз. Растворимость. Кристаллогидраты.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -6269,11 +6269,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p6_05_c1",
-            "title": "Тест: Теория №32",
+            "id": "comp-hw-p6_05_c1",
+            "title": "Письменное ДЗ: Теория №32",
             "subtitle": "ОВР в органической химии.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -6292,11 +6292,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p6_05_c2",
-            "title": "Тест: Теория №33",
+            "id": "comp-hw-p6_05_c2",
+            "title": "Письменное ДЗ: Теория №33",
             "subtitle": "Алкены.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -6457,11 +6457,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p6_09_c1",
-            "title": "Письменное ДЗ: Практика №32",
+            "id": "comp-test-p6_09_c1",
+            "title": "Тест: Практика №32",
             "subtitle": "ОВР в органической химии.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -6562,11 +6562,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p6_11_c1",
-            "title": "Письменное ДЗ: Практика №33",
+            "id": "comp-test-p6_11_c1",
+            "title": "Тест: Практика №33",
             "subtitle": "Алкены.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -6660,11 +6660,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p6_12_c1",
-            "title": "Тест: Теория №34",
+            "id": "comp-hw-p6_12_c1",
+            "title": "Письменное ДЗ: Теория №34",
             "subtitle": "Задача 33 (2). Все типы расчётов в задаче 33.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -6683,11 +6683,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p6_12_c2",
-            "title": "Тест: Теория №35",
+            "id": "comp-hw-p6_12_c2",
+            "title": "Письменное ДЗ: Теория №35",
             "subtitle": "Алкадиены.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -6852,11 +6852,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p7_16_c1",
-            "title": "Письменное ДЗ: Практика №34",
+            "id": "comp-test-p7_16_c1",
+            "title": "Тест: Практика №34",
             "subtitle": "Задача 33 (2). Все типы расчётов в задаче 33.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -6946,11 +6946,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p7_18_c1",
-            "title": "Письменное ДЗ: Практика №35",
+            "id": "comp-test-p7_18_c1",
+            "title": "Тест: Практика №35",
             "subtitle": "Алкадиены.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -7056,11 +7056,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p7_19_c1",
-            "title": "Тест: Теория №36",
+            "id": "comp-hw-p7_19_c1",
+            "title": "Письменное ДЗ: Теория №36",
             "subtitle": "Циклические углеводороды (циклы).",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -7079,11 +7079,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p7_19_c2",
-            "title": "Тест: Теория №37",
+            "id": "comp-hw-p7_19_c2",
+            "title": "Письменное ДЗ: Теория №37",
             "subtitle": "Задача 34.4. Смеси. Неполное разложение. Задачи на два случая. Введение переменной в одну реакцию.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -7220,11 +7220,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p7_23_c1",
-            "title": "Письменное ДЗ: Практика №36",
+            "id": "comp-test-p7_23_c1",
+            "title": "Тест: Практика №36",
             "subtitle": "Циклические углеводороды (циклы).",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -7303,11 +7303,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p7_25_c1",
-            "title": "Письменное ДЗ: Практика №37",
+            "id": "comp-test-p7_25_c1",
+            "title": "Тест: Практика №37",
             "subtitle": "Задача 34.4. Смеси. Неполное разложение. Задачи на два случая. Введение переменной в одну реакцию.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -7390,11 +7390,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p7_26_c1",
-            "title": "Тест: Теория №38",
+            "id": "comp-hw-p7_26_c1",
+            "title": "Письменное ДЗ: Теория №38",
             "subtitle": "Алкины.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -7413,11 +7413,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p7_26_c2",
-            "title": "Тест: Теория №39",
+            "id": "comp-hw-p7_26_c2",
+            "title": "Письменное ДЗ: Теория №39",
             "subtitle": "Арены.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -7586,11 +7586,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p7_06_c1",
-            "title": "Письменное ДЗ: Практика №38",
+            "id": "comp-test-p7_06_c1",
+            "title": "Тест: Практика №38",
             "subtitle": "Алкины.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -7633,11 +7633,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p7_08_c1",
-            "title": "Письменное ДЗ: Практика №39",
+            "id": "comp-test-p7_08_c1",
+            "title": "Тест: Практика №39",
             "subtitle": "Арены.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -7709,11 +7709,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p7_09_c1",
-            "title": "Тест: Теория №40",
+            "id": "comp-hw-p7_09_c1",
+            "title": "Письменное ДЗ: Теория №40",
             "subtitle": "Спирты. Многоатомные спирты.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -7732,11 +7732,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p7_09_c2",
-            "title": "Тест: Теория №41",
+            "id": "comp-hw-p7_09_c2",
+            "title": "Письменное ДЗ: Теория №41",
             "subtitle": "Задача 34.5. Введение одной переменной. Масса конечного раствора. Изменение массы раствора. Изменение массовой доли.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -7924,11 +7924,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p8_13_c1",
-            "title": "Письменное ДЗ: Практика №40",
+            "id": "comp-test-p8_13_c1",
+            "title": "Тест: Практика №40",
             "subtitle": "Спирты. Многоатомные спирты.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -8029,11 +8029,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p8_15_c1",
-            "title": "Письменное ДЗ: Практика №41",
+            "id": "comp-test-p8_15_c1",
+            "title": "Тест: Практика №41",
             "subtitle": "Задача 34.5. Введение одной переменной. Масса конечного раствора. Изменение массы раствора. Изменение массовой доли.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -8138,11 +8138,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p8_16_c1",
-            "title": "Тест: Теория №42",
+            "id": "comp-hw-p8_16_c1",
+            "title": "Письменное ДЗ: Теория №42",
             "subtitle": "Фенолы. Простые эфиры.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -8161,11 +8161,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p8_16_c2",
-            "title": "Тест: Теория №43",
+            "id": "comp-hw-p8_16_c2",
+            "title": "Письменное ДЗ: Теория №43",
             "subtitle": "Альдегиды и кетоны.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -8326,11 +8326,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p8_20_c1",
-            "title": "Письменное ДЗ: Практика №42",
+            "id": "comp-test-p8_20_c1",
+            "title": "Тест: Практика №42",
             "subtitle": "Фенолы. Простые эфиры.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -8409,11 +8409,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p8_22_c1",
-            "title": "Письменное ДЗ: Практика №43",
+            "id": "comp-test-p8_22_c1",
+            "title": "Тест: Практика №43",
             "subtitle": "Альдегиды и кетоны.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -8519,11 +8519,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p8_23_c1",
-            "title": "Тест: Теория №44",
+            "id": "comp-hw-p8_23_c1",
+            "title": "Письменное ДЗ: Теория №44",
             "subtitle": "Карбоновые кислоты.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -8542,11 +8542,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p8_23_c2",
-            "title": "Тест: Теория №45",
+            "id": "comp-hw-p8_23_c2",
+            "title": "Письменное ДЗ: Теория №45",
             "subtitle": "Задача 34.6. Введение двух переменных. Типы солей. Соотношения и их преобразования.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -8707,11 +8707,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p8_27_c1",
-            "title": "Письменное ДЗ: Практика №44",
+            "id": "comp-test-p8_27_c1",
+            "title": "Тест: Практика №44",
             "subtitle": "Карбоновые кислоты.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -8801,11 +8801,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p8_29_c1",
-            "title": "Письменное ДЗ: Практика №45",
+            "id": "comp-test-p8_29_c1",
+            "title": "Тест: Практика №45",
             "subtitle": "Задача 34.6. Введение двух переменных. Типы солей. Соотношения и их преобразования.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -8888,11 +8888,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p8_30_c1",
-            "title": "Тест: Теория №46",
+            "id": "comp-hw-p8_30_c1",
+            "title": "Письменное ДЗ: Теория №46",
             "subtitle": "Сложные эфиры. Жиры. Мыла.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -8911,11 +8911,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p8_30_c2",
-            "title": "Тест: Теория №47",
+            "id": "comp-hw-p8_30_c2",
+            "title": "Письменное ДЗ: Теория №47",
             "subtitle": "Амины. Нитросоединения.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -9069,11 +9069,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p9_03_c1",
-            "title": "Письменное ДЗ: Практика №46",
+            "id": "comp-test-p9_03_c1",
+            "title": "Тест: Практика №46",
             "subtitle": "Сложные эфиры. Жиры. Мыла.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -9152,11 +9152,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p9_05_c1",
-            "title": "Письменное ДЗ: Практика №47",
+            "id": "comp-test-p9_05_c1",
+            "title": "Тест: Практика №47",
             "subtitle": "Амины. Нитросоединения.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -9273,11 +9273,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p9_06_c2",
-            "title": "Тест: Теория №48",
+            "id": "comp-hw-p9_06_c2",
+            "title": "Письменное ДЗ: Теория №48",
             "subtitle": "Аминокислоты. Белки.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -9296,11 +9296,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p9_06_c3",
-            "title": "Тест: Теория №49",
+            "id": "comp-hw-p9_06_c3",
+            "title": "Письменное ДЗ: Теория №49",
             "subtitle": "Задача 34.7. Атомарность.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -9438,11 +9438,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p9_10_c1",
-            "title": "Письменное ДЗ: Практика №48",
+            "id": "comp-test-p9_10_c1",
+            "title": "Тест: Практика №48",
             "subtitle": "Аминокислоты. Белки.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -9554,11 +9554,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p9_12_c1",
-            "title": "Письменное ДЗ: Практика №49",
+            "id": "comp-test-p9_12_c1",
+            "title": "Тест: Практика №49",
             "subtitle": "Задача 34.7. Атомарность.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -9652,11 +9652,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p9_13_c1",
-            "title": "Тест: Теория №50",
+            "id": "comp-hw-p9_13_c1",
+            "title": "Письменное ДЗ: Теория №50",
             "subtitle": "Углеводы.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -9675,11 +9675,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p9_13_c2",
-            "title": "Тест: Теория №51",
+            "id": "comp-hw-p9_13_c2",
+            "title": "Письменное ДЗ: Теория №51",
             "subtitle": "Галогенпроизводные. Природные источники углеводородов.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -9850,11 +9850,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p9_17_c1",
-            "title": "Письменное ДЗ: Практика №50",
+            "id": "comp-test-p9_17_c1",
+            "title": "Тест: Практика №50",
             "subtitle": "Углеводы.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -9933,11 +9933,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p9_19_c1",
-            "title": "Письменное ДЗ: Практика №51",
+            "id": "comp-test-p9_19_c1",
+            "title": "Тест: Практика №51",
             "subtitle": "Галогенпроизводные. Природные источники углеводородов.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -10043,11 +10043,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p9_20_c1",
-            "title": "Тест: Теория №52",
+            "id": "comp-hw-p9_20_c1",
+            "title": "Письменное ДЗ: Теория №52",
             "subtitle": "Задача 34.8. Растворимость. Растворимость КГ.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -10191,11 +10191,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p10_24_c1",
-            "title": "Письменное ДЗ: Обобщающая практика по органике",
+            "id": "comp-test-p10_24_c1",
+            "title": "Тест: Обобщающая практика по органике",
             "subtitle": "Химия",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -10285,11 +10285,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p10_26_c1",
-            "title": "Письменное ДЗ: Практика №52",
+            "id": "comp-test-p10_26_c1",
+            "title": "Тест: Практика №52",
             "subtitle": "Задача 34.8. Растворимость. Растворимость КГ.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -10372,11 +10372,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p10_27_c1",
-            "title": "Тест: Теория №53",
+            "id": "comp-hw-p10_27_c1",
+            "title": "Письменное ДЗ: Теория №53",
             "subtitle": "Закономерности ОВР.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -10395,11 +10395,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p10_27_c2",
-            "title": "Тест: Теория №54",
+            "id": "comp-hw-p10_27_c2",
+            "title": "Письменное ДЗ: Теория №54",
             "subtitle": "Задача 34.9. Электролиз. Пластинка.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -10547,11 +10547,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p10_03_c1",
-            "title": "Письменное ДЗ: Практика №53",
+            "id": "comp-test-p10_03_c1",
+            "title": "Тест: Практика №53",
             "subtitle": "Закономерности ОВР.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -10630,11 +10630,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p10_05_c1",
-            "title": "Письменное ДЗ: Практика №54",
+            "id": "comp-test-p10_05_c1",
+            "title": "Тест: Практика №54",
             "subtitle": "Задача 34.9. Электролиз. Пластинка.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -10740,11 +10740,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p10_06_c1",
-            "title": "Тест: Теория №55",
+            "id": "comp-hw-p10_06_c1",
+            "title": "Письменное ДЗ: Теория №55",
             "subtitle": "Водород. Пероксид водорода.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -10763,11 +10763,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p10_06_c2",
-            "title": "Тест: Теория №56",
+            "id": "comp-hw-p10_06_c2",
+            "title": "Письменное ДЗ: Теория №56",
             "subtitle": "Галогены.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -10927,11 +10927,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p10_10_c1",
-            "title": "Письменное ДЗ: Практика №55",
+            "id": "comp-test-p10_10_c1",
+            "title": "Тест: Практика №55",
             "subtitle": "Водород. Пероксид водорода.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -11043,11 +11043,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p10_12_c1",
-            "title": "Письменное ДЗ: Практика №56",
+            "id": "comp-test-p10_12_c1",
+            "title": "Тест: Практика №56",
             "subtitle": "Галогены.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -11141,11 +11141,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p10_13_c1",
-            "title": "Тест: Теория №57",
+            "id": "comp-hw-p10_13_c1",
+            "title": "Письменное ДЗ: Теория №57",
             "subtitle": "Кислород. Сера.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -11164,11 +11164,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p10_13_c2",
-            "title": "Тест: Теория №58",
+            "id": "comp-hw-p10_13_c2",
+            "title": "Письменное ДЗ: Теория №58",
             "subtitle": "Азот.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -11345,11 +11345,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p11_17_c1",
-            "title": "Письменное ДЗ: Практика №57",
+            "id": "comp-test-p11_17_c1",
+            "title": "Тест: Практика №57",
             "subtitle": "Кислород. Сера.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -11428,11 +11428,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p11_19_c1",
-            "title": "Письменное ДЗ: Практика №58",
+            "id": "comp-test-p11_19_c1",
+            "title": "Тест: Практика №58",
             "subtitle": "Азот.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -11538,11 +11538,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p11_20_c1",
-            "title": "Тест: Теория №59",
+            "id": "comp-hw-p11_20_c1",
+            "title": "Письменное ДЗ: Теория №59",
             "subtitle": "Фосфор.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -11561,11 +11561,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p11_20_c2",
-            "title": "Тест: Теория №60",
+            "id": "comp-hw-p11_20_c2",
+            "title": "Письменное ДЗ: Теория №60",
             "subtitle": "Углерод. Кремний.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -11726,11 +11726,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p11_24_c1",
-            "title": "Письменное ДЗ: Практика №59",
+            "id": "comp-test-p11_24_c1",
+            "title": "Тест: Практика №59",
             "subtitle": "Фосфор.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -11820,11 +11820,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p11_26_c1",
-            "title": "Письменное ДЗ: Практика №60",
+            "id": "comp-test-p11_26_c1",
+            "title": "Тест: Практика №60",
             "subtitle": "Углерод. Кремний.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -11907,11 +11907,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p11_27_c1",
-            "title": "Тест: Теория №61",
+            "id": "comp-hw-p11_27_c1",
+            "title": "Письменное ДЗ: Теория №61",
             "subtitle": "Металлы. Металлы IA и IIA групп. Алюминий и цинк.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -11930,11 +11930,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p11_27_c2",
-            "title": "Тест: Теория №62",
+            "id": "comp-hw-p11_27_c2",
+            "title": "Письменное ДЗ: Теория №62",
             "subtitle": "Железо. Хром.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -12060,11 +12060,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p11_31_c1",
-            "title": "Письменное ДЗ: Практика №61",
+            "id": "comp-test-p11_31_c1",
+            "title": "Тест: Практика №61",
             "subtitle": "Металлы. Металлы IA и IIA групп. Алюминий и цинк.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -12143,11 +12143,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p11_02_c1",
-            "title": "Письменное ДЗ: Практика №62",
+            "id": "comp-test-p11_02_c1",
+            "title": "Тест: Практика №62",
             "subtitle": "Железо. Хром.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -12275,11 +12275,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p11_03_c1",
-            "title": "Тест: Теория №63",
+            "id": "comp-hw-p11_03_c1",
+            "title": "Письменное ДЗ: Теория №63",
             "subtitle": "Марганец. Медь. Серебро.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -12389,11 +12389,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p12_07_c1",
-            "title": "Письменное ДЗ: Практика №63",
+            "id": "comp-test-p12_07_c1",
+            "title": "Тест: Практика №63",
             "subtitle": "Марганец. Медь. Серебро.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -12460,11 +12460,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p12_09_c1",
-            "title": "Письменное ДЗ: Обобщающая практика по химии элементов",
+            "id": "comp-test-p12_09_c1",
+            "title": "Тест: Обобщающая практика по химии элементов",
             "subtitle": "Химия",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,
@@ -12546,11 +12546,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-test-p12_10_c1",
-            "title": "Тест: Теория №64",
+            "id": "comp-hw-p12_10_c1",
+            "title": "Письменное ДЗ: Теория №64",
             "subtitle": "Задание 24. Задание 25.",
             "subject": "chem",
-            "category": "test",
+            "category": "homework",
             "time": null,
             "icon": null,
             "completed": false,
@@ -12698,11 +12698,11 @@ window.COURSE_DATA = [
             "isCompanion": false
           },
           {
-            "id": "comp-hw-p12_14_c1",
-            "title": "Письменное ДЗ: Практика №64",
+            "id": "comp-test-p12_14_c1",
+            "title": "Тест: Практика №64",
             "subtitle": "Задание 24. Задание 25.",
             "subject": "chem",
-            "category": "homework",
+            "category": "test",
             "time": null,
             "icon": null,
             "completed": false,

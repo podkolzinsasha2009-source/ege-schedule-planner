@@ -3,19 +3,19 @@
 // «ХимБиоРус ЕГЭ» — Работает без сервера и интернета
 // ==========================================================================
 
-const CACHE_NAME = 'himbiorus-pwa-v26';
+const CACHE_NAME = 'himbiorus-pwa-v28';
 
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
-  './styles.css?v=26',
-  './schedule_data.js?v=26',
-  './qrcode.min.js?v=26',
-  './store.js?v=26',
-  './shapes.js?v=26',
-  './ink.js?v=26',
-  './photos.js?v=26',
-  './app.js?v=26',
+  './styles.css?v=28',
+  './schedule_data.js?v=28',
+  './qrcode.min.js?v=28',
+  './store.js?v=28',
+  './shapes.js?v=28',
+  './ink.js?v=28',
+  './photos.js?v=28',
+  './app.js?v=28',
   './manifest.json',
   './icon.png'
 ];

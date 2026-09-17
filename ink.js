@@ -1,9 +1,13 @@
 // ==========================================================================
 // СТИЛУС «ХИМБИОРУС» — рукописные заметки поверх доски
 //
-// Штрихи хранятся в координатах доски (одинаковых на всех устройствах)
-// по пути strokes/<период>/<id>. Пока линия рисуется, она транслируется
-// в live/<клиент>, поэтому на другом устройстве видна прямо во время письма.
+// Доска — одна длинная лента из всех периодов. Холст стилуса один на всю
+// ленту, а какому периоду принадлежит штрих определяется по тому, в какой
+// период попала точка начала жеста (HB.periodAt). В хранилище координаты
+// штриха остаются локальными для своего периода (strokes/<период>/<id>),
+// а при рисовании к ним прибавляется смещение периода на общей ленте
+// (HB.periodTop) — так штрихи не «поедут», если высота периодов чуть
+// изменится из-за добавленных/удалённых плашек на других устройствах.
 // ==========================================================================
 
 (function () {
@@ -37,7 +41,7 @@
   let penSeen = false;
 
   let rendered = new Set();
-  const parsedCache = new Map(); // id → { p, pts }
+  const parsedCache = new Map(); // id → { p, pts, box }
   let current = null;            // рисуемый сейчас штрих
   let lastLiveSent = 0;
   let overlayDirty = false;
@@ -68,7 +72,8 @@
     return parsed(id, stroke).pts;
   }
 
-  // Точки штриха и его рамка (для пропуска штрихов за краем холста)
+  // Точки штриха (в ЛОКАЛЬНЫХ для своего периода координатах) и его рамка
+  // (для пропуска штрихов за краем холста)
   function parsed(id, stroke) {
     const cached = parsedCache.get(id);
     if (cached && cached.p === stroke.p) return cached;
@@ -160,13 +165,14 @@
 
   // ------------------------------------------------------------------ холсты
 
+  // «Текущий» период (для кнопки «Стереть всё») — период, видимый на экране
   function periodId() {
     const p = HB.currentPeriod();
     return p ? p.id : 'default';
   }
 
-  function periodStrokes() {
-    return Store.get(`strokes/${periodId()}`) || {};
+  function periodStrokes(pid) {
+    return Store.get(`strokes/${pid}`) || {};
   }
 
   function sortedIds(strokes) {
@@ -220,7 +226,7 @@
     requestOverlay();
   }
 
-  // Координаты доски → пиксели холста
+  // Координаты доски (глобальные, по всей ленте периодов) → пиксели холста
   function applyTransform(ctx) {
     const k = view.scale * view.zoom;
     ctx.setTransform(k, 0, 0, k, -view.left * view.scale, -view.top * view.scale);
@@ -237,7 +243,8 @@
     });
   }
 
-  // Видимая часть доски в её координатах — чтобы не рисовать штрихи за краем холста
+  // Видимая часть доски в глобальных координатах ленты — чтобы не рисовать штрихи
+  // и не перебирать периоды за краем холста
   function visibleBoardRect() {
     const k = view.zoom || 1;
     return { x0: view.left / k, y0: view.top / k, x1: (view.left + view.w) / k, y1: (view.top + view.h) / k };
@@ -250,38 +257,37 @@
     ctx.restore();
   }
 
+  // Перебираем периоды, которые попадают в видимую область, и для каждого рисуем
+  // его штрихи со сдвигом ctx.translate(0, периодTop) — так локальные координаты
+  // штриха превращаются в правильное место на общей ленте.
   function redrawAll() {
     clearCtx(inkCtx, ink);
-    const strokes = periodStrokes();
     rendered = new Set();
     const vis = visibleBoardRect();
-    sortedIds(strokes).forEach(id => {
-      const entry = parsed(id, strokes[id]);
-      rendered.add(id);
-      const box = entry.box;
-      if (box.x1 < vis.x0 || box.x0 > vis.x1 || box.y1 < vis.y0 || box.y0 > vis.y1) return;
-      drawStroke(inkCtx, strokes[id], entry.pts);
+    const periods = HB.periodLayout().filter(p => p.top + p.height >= vis.y0 && p.top <= vis.y1);
+    periods.forEach(p => {
+      const strokes = periodStrokes(p.id);
+      const localVis = { x0: vis.x0, x1: vis.x1, y0: vis.y0 - p.top, y1: vis.y1 - p.top };
+      inkCtx.save();
+      inkCtx.translate(0, p.top);
+      sortedIds(strokes).forEach(id => {
+        const entry = parsed(id, strokes[id]);
+        rendered.add(id);
+        const box = entry.box;
+        if (box.x1 < localVis.x0 || box.x0 > localVis.x1 || box.y1 < localVis.y0 || box.y0 > localVis.y1) return;
+        drawStroke(inkCtx, strokes[id], entry.pts);
+      });
+      inkCtx.restore();
     });
-    // Недописанная линия ручки живёт прямо на этом холсте — возвращаем её
+    // Недописанная линия ручки уже в глобальных координатах — сдвиг не нужен
     if (current && current.stroke.t === 'pen') drawStroke(inkCtx, current.stroke, current.pts);
   }
 
-  // Дорисовываем только новые штрихи; если что-то удалили — перерисовываем всё
+  // Полный пересчёт при любом изменении штрихов от других устройств — штрихи
+  // финализируются нечасто (раз на законченную линию), поэтому точечная
+  // доперерисовка не нужна и лишь усложняет код при нескольких периодах разом.
   function syncInk() {
-    const strokes = periodStrokes();
-    const ids = new Set(Object.keys(strokes));
-    for (const id of rendered) {
-      if (!ids.has(id)) { redrawAll(); return; }
-    }
-    sortedIds(strokes).forEach(id => {
-      if (rendered.has(id)) {
-        const cached = parsedCache.get(id);
-        if (cached && cached.p !== strokes[id].p) { redrawAll(); }
-        return;
-      }
-      drawStroke(inkCtx, strokes[id], pointsOf(id, strokes[id]));
-      rendered.add(id);
-    });
+    redrawAll();
   }
 
   function requestOverlay() {
@@ -294,15 +300,17 @@
     overlayDirty = false;
     clearCtx(overlayCtx, overlay);
     const live = Store.get('live') || {};
-    const pid = periodId();
     const now = Date.now();
     Object.keys(live).forEach(cid => {
       if (cid === Store.clientId) return;
       const entry = live[cid];
-      if (!entry || entry.pid !== pid || entry.t === 'eraser') return;
-      if (entry.sid && Store.get(`strokes/${pid}/${entry.sid}`)) return;
+      if (!entry || entry.t === 'eraser') return;
+      if (entry.sid && Store.get(`strokes/${entry.pid}/${entry.sid}`)) return;
       if (now - (liveSeen[cid] || 0) > STALE_LIVE_MS) return;
+      overlayCtx.save();
+      overlayCtx.translate(0, HB.periodTop(entry.pid));
       drawStroke(overlayCtx, entry, decodePoints(entry.p));
+      overlayCtx.restore();
     });
     if (current && current.stroke.t === 'hl') {
       drawStroke(overlayCtx, current.stroke, current.pts);
@@ -415,13 +423,17 @@
 
   function beginStroke(e) {
     const tool = settings.tool;
+    const rect = board.getBoundingClientRect();
+    const startY = (e.clientY - rect.top) / layout.zoom;
+    const pid = HB.periodAt(startY).id;
     current = {
       pointerId: e.pointerId,
       pointerType: e.pointerType,
       id: Store.newId('s'),
-      pid: periodId(),
-      rect: board.getBoundingClientRect(),
-      pts: [],
+      pid,
+      originTop: HB.periodTop(pid), // локальная точка отсчёта штриха для хранения в БД
+      rect,
+      pts: [],           // точки копятся в ГЛОБАЛЬНЫХ координатах, пока штрих рисуется
       erased: {},
       stroke: { t: tool, c: settings.color, s: settings.size }
     };
@@ -523,10 +535,13 @@
     inkCtx.restore();
   }
 
+  // В сеть уходят ЛОКАЛЬНЫЕ координаты (минус originTop) — так соседнее устройство
+  // само прибавит смещение своего (совпадающего) HB.periodTop(pid) при отрисовке.
   function sendLive() {
     if (!Store.room || !current || current.stroke.t === 'stroke-eraser') return;
+    const localPts = current.pts.map(p => [p[0], p[1] - current.originTop, p[2]]);
     Store.update({
-      ['live/' + Store.clientId]: Object.assign({ pid: current.pid, sid: current.id, p: encodePoints(current.pts) }, current.stroke)
+      ['live/' + Store.clientId]: Object.assign({ pid: current.pid, sid: current.id, p: encodePoints(localPts) }, current.stroke)
     }, { ephemeral: true, silent: true });
   }
 
@@ -552,7 +567,8 @@
       rendered.add(done.id); // уже на холсте — syncInk не будет рисовать повторно
     }
 
-    const record = Object.assign({}, done.stroke, { p: encodePoints(done.pts), ts: Date.now(), by: Store.clientId });
+    const localPts = done.pts.map(p => [p[0], p[1] - done.originTop, p[2]]);
+    const record = Object.assign({}, done.stroke, { p: encodePoints(localPts), ts: Date.now(), by: Store.clientId });
     const updates = { [`strokes/${done.pid}/${done.id}`]: record };
     if (Store.room) updates['live/' + Store.clientId] = null;
     Store.update(updates);
@@ -571,7 +587,9 @@
     requestOverlay();
   }
 
-  // ---- ластик штрихов: касание любой части линии удаляет её целиком
+  // ---- ластик штрихов: касание любой части линии удаляет её целиком.
+  // x,y — глобальные координаты; сравниваем с локальными точками штрихов
+  // того же периода, куда «попал» этот жест стирания (current.pid/originTop).
 
   function distToSegment(px, py, x1, y1, x2, y2) {
     const dx = x2 - x1, dy = y2 - y1;
@@ -582,8 +600,10 @@
   }
 
   function eraseStrokesAt(x, y) {
-    const strokes = periodStrokes();
-    const radius = Math.max(10, settings.size * 3) ;
+    const pid = current.pid;
+    const localY = y - current.originTop;
+    const strokes = periodStrokes(pid);
+    const radius = Math.max(10, settings.size * 3);
     const updates = {};
     Object.keys(strokes).forEach(id => {
       const st = strokes[id];
@@ -591,11 +611,11 @@
       const pts = pointsOf(id, st);
       const reach = radius + widthFor(st, 0.6) / 2;
       const hit = pts.length === 1
-        ? Math.hypot(pts[0][0] - x, pts[0][1] - y) <= reach
-        : pts.some((p, i) => i > 0 && distToSegment(x, y, pts[i - 1][0], pts[i - 1][1], p[0], p[1]) <= reach);
+        ? Math.hypot(pts[0][0] - x, pts[0][1] - localY) <= reach
+        : pts.some((p, i) => i > 0 && distToSegment(x, localY, pts[i - 1][0], pts[i - 1][1], p[0], p[1]) <= reach);
       if (hit) {
         current.erased[id] = st;
-        updates[`strokes/${current.pid}/${id}`] = null;
+        updates[`strokes/${pid}/${id}`] = null;
       }
     });
     if (Object.keys(updates).length) Store.update(updates);
@@ -639,10 +659,11 @@
   }
 
   function clearPeriod() {
-    const strokes = periodStrokes();
+    const pid = periodId();
+    const strokes = periodStrokes(pid);
     if (!Object.keys(strokes).length) { HB.toast('На этом периоде нет рисунков'); return; }
     if (!confirm('Стереть все рисунки на этом периоде? Действие можно отменить кнопкой «Отменить».')) return;
-    const action = { type: 'clear', pid: periodId(), strokes: Object.assign({}, strokes) };
+    const action = { type: 'clear', pid, strokes: Object.assign({}, strokes) };
     applyAction(action, false);
     pushUndo(action);
   }
@@ -771,15 +792,6 @@
     window.addEventListener('resize', () => schedulePlace(true));
     // Запасной таймер: кадры анимации не приходят в фоновой вкладке
     setInterval(() => { if (!current) placeCanvases(false); }, 1500);
-
-    document.addEventListener('hb:period', () => {
-      undoStack.length = 0;
-      redoStack.length = 0;
-      if (current) discardStroke();
-      redrawAll();
-      requestOverlay();
-      updateToolbar();
-    });
 
     Store.subscribe(({ paths }) => {
       const roots = new Set(paths.map(p => p.split('/').filter(Boolean)[0] || '/'));

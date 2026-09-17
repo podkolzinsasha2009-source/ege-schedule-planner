@@ -1222,10 +1222,12 @@ def build_all_periods():
 def inject_companion_blocks(periods):
     """
     Applies user rules:
-    - To every theory: add 'Тест' block (same subject color)
-    - To every practice: add 'Письменное ДЗ' block (same subject color)
-    - To every mock: add 'Тест' block (same subject color)
-    - To every essay/literature review: add 'Тест' block (rus color)
+    - Biology and Russian: to every theory add 'Тест'; to every practice add 'Письменное ДЗ'.
+    - Chemistry works the other way round: to every theory add 'Письменное ДЗ' (отработка
+      навыков), to every practice add 'Тест' — the user was explicit that chemistry does not
+      follow the bio/rus pattern.
+    - To every mock: no companion (per earlier user instruction).
+    - To every essay/literature review: add 'Тест' block (rus color).
     """
     stats = {"theories": 0, "practices": 0, "mocks": 0, "reviews": 0, "companions_added": 0}
 
@@ -1235,15 +1237,16 @@ def inject_companion_blocks(periods):
             for item in day_data["items"]:
                 new_items.append(item)
                 cat = item.get("category")
+                chem = item.get("subject") == "chem"
                 if cat == "theory":
                     stats["theories"] += 1
-                    test_item = create_companion_test(item)
-                    new_items.append(test_item)
+                    companion = create_companion_hw(item) if chem else create_companion_test(item)
+                    new_items.append(companion)
                     stats["companions_added"] += 1
                 elif cat == "practice":
                     stats["practices"] += 1
-                    hw_item = create_companion_hw(item)
-                    new_items.append(hw_item)
+                    companion = create_companion_test(item) if chem else create_companion_hw(item)
+                    new_items.append(companion)
                     stats["companions_added"] += 1
                 elif cat == "mock":
                     stats["mocks"] += 1
