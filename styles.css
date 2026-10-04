@@ -30,6 +30,7 @@
   --general: #d4b98f;
 
   --danger: #ff5a5f;
+  --practice: #ff1f2e;
   --radius: 18px;
   --radius-sm: 12px;
   --shadow: 0 24px 60px -24px rgba(0, 0, 0, 0.8);
@@ -561,6 +562,8 @@ main { position: relative; }
 .card.link-below::before { bottom: -8px; border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
 .card.link-above::before { top: -8px; border-top-left-radius: 0; border-top-right-radius: 0; }
 .card.link-below { z-index: 1; }
+/* Практика вместе со своим ДЗ/тестом — красная полоска; разъединили — возвращается цвет предмета */
+.card.practice-block::before { left: 3px; width: 5px; background: var(--practice); }
 
 .card.is-drag-source { opacity: 0.25; }
 .drag-ghost {

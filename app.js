@@ -437,14 +437,21 @@
 
   // ------------------------------------------------------------------ отрисовка
 
-  // Помечаем пары «занятие → его тест/ДЗ», стоящие подряд, чтобы соединить их полоской
+  // Помечаем пары «занятие → его тест/ДЗ», стоящие подряд, чтобы соединить их полоской.
+  // Блок «практика + её ДЗ/тест» выделяется красной полоской, пока пара стоит вместе.
   function linkedCardsHtml(list) {
     return list.map((it, i) => {
       const next = list[i + 1];
       const prev = list[i - 1];
       const links = [];
-      if (next && next.isCompanion && next.parentId === it.id) links.push('link-below');
-      if (prev && it.isCompanion && it.parentId === prev.id) links.push('link-above');
+      if (next && next.isCompanion && next.parentId === it.id) {
+        links.push('link-below');
+        if (it.category === 'practice') links.push('practice-block');
+      }
+      if (prev && it.isCompanion && it.parentId === prev.id) {
+        links.push('link-above');
+        if (prev.category === 'practice') links.push('practice-block');
+      }
       return cardHtml(it, links.join(' '));
     }).join('');
   }
@@ -997,7 +1004,7 @@
 
     const ghost = card.cloneNode(true);
     ghost.classList.add('drag-ghost');
-    ghost.classList.remove('link-below', 'link-above');
+    ghost.classList.remove('link-below', 'link-above', 'practice-block');
     ghost.style.width = card.offsetWidth + 'px';
     ghost.style.setProperty('--z', ui.zoom);
     document.body.appendChild(ghost);
