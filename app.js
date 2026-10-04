@@ -299,22 +299,39 @@
 
   // --------------------------------------------------------------- дедлайны
 
-  // Правила — из объяснения пользователя на примерах (не из промпта). Срок всегда
-  // считается от даты ВЫХОДА по расписанию курса, а не от дня, куда плашку
-  // перетащили: перенос плашки — это план, когда её делать, срок от него не меняется.
-  //   пробник: выложен в 00:00 дня N → до 23:59 дня N+6 (химия: 14.09 → 20.09)
-  //   рубежная аттестация: выложена в день N → до 23:59 дня N+7 (22.09 → 29.09)
-  //   тест к разбору произведения: выложен N → до N+4 (4.09 → 8.09)
+  // Правила выведены из реальных сообщений бота «ноо — учебный бот» в Telegram
+  // (29.08–03.10.2026), сопоставленных с датой выхода по расписанию курса. Срок всегда
+  // считается от даты ВЫХОДА, а не от дня, куда плашку перетащили: перенос плашки —
+  // это план, когда её делать, срок от него не меняется.
+  //   химия: письменное ДЗ к теории №K и тест к практике №K сдаются вместе —
+  //     через 3 дня после практики №K (практика в СР → СБ, практика в ПТ → ПН;
+  //     теория 22.08, практика 28.08 → 31.08)
   //   биология: тест к теории N → N+4 (12.09 → 16.09); ДЗ к практике N → N+3 (15.09 → 18.09)
-  //   русский: тест к теории N → N+4 (как у биологии); сочинение к практике → N+7 (со слов «по-моему, неделя»)
-  //   химия: и письменное ДЗ к теории №K, и тест к практике №K → дата теории №K + 7 (12.09 → 19.09)
+  //   русский: тест к теории и к разбору произведения N → N+4 (25.08 → 29.08);
+  //     сочинение к практике — до воскресенья (практика в ПН 31.08 → ВС 6.09;
+  //     для субботних практик бот примеров не дал — берём воскресенье следующей недели);
+  //     «Тест №K» (пробник без сочинения) N → N+6 (2.09 → 8.09)
+  //   пробник: N → N+7 (биология 23.09 → 30.09, русский 15.09 → 22.09, химия 31.08 → 7.09)
+  //   рубежная аттестация: N → N+7 (совпадает с «до …» в расписании)
   const DEADLINE_DAYS = {
-    mock: 6,
+    mock: 7,
     attestation: 7,
+    rusTest: 6,
     reviewTest: 4,
     theoryTest: { bio: 4, rus: 4 },
-    practiceHw: { bio: 3, rus: 7 },
-    chem: 7
+    practiceHw: { bio: 3 },
+    chemAfterPractice: 3,
+    chemAfterTheory: 7
+  };
+
+  // Сроки, которые бот назвал иначе, чем получается по правилам выше
+  const DEADLINE_EXCEPTIONS = {
+    'p2_14_c1': '2026-09-20',           // химия, пробник №3: 14.09 → 20.09
+    'comp-test-p1_16_r1': '2026-08-29', // русский, «Сочинение/Итоговое сочинение»
+    'comp-test-p1_18_r1': '2026-08-29',
+    'comp-test-p3_22_r1': '2026-09-28', // русский, NEW Культура речи: 4 задание
+    'comp-test-p3_24_r1': '2026-09-29', // 5 задание
+    'comp-test-p3_26_r2': '2026-10-03'  // 6 задание
   };
 
   function itemNumber(title) {
@@ -333,26 +350,32 @@
     return d;
   }
 
+  // Ближайшее воскресенье не раньше чем через 6 дней: ПН → ВС той же недели, СБ → ВС следующей
+  function essaySunday(date) {
+    const d = addDays(date, 6);
+    return addDays(d, (7 - d.getDay()) % 7);
+  }
+
   const DEADLINE_MONTHS = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
 
   function formatDeadline(date) {
     return `до ${date.getDate()} ${DEADLINE_MONTHS[date.getMonth()]}, 23:59`;
   }
 
-  // Исходное расписание курса: где плашка стоит в PDF и дата теории по химии для номера
+  // Исходное расписание курса: где плашка стоит в PDF и дата практики по химии для номера
   const COURSE_INDEX = (() => {
     const byId = {};
-    const chemTheoryDate = {};
+    const chemPracticeDate = {};
     COURSE.forEach(p => Object.keys(p.days).forEach(dateKey => {
       p.days[dateKey].items.forEach(it => {
         byId[it.id] = { date: dateKey, item: it };
-        if (it.subject === 'chem' && it.category === 'theory') {
+        if (it.subject === 'chem' && it.category === 'practice') {
           const n = itemNumber(it.title);
-          if (n && !chemTheoryDate[n]) chemTheoryDate[n] = dateKey;
+          if (n && !chemPracticeDate[n]) chemPracticeDate[n] = dateKey;
         }
       });
     }));
-    return { byId, chemTheoryDate };
+    return { byId, chemPracticeDate };
   })();
 
   function buildDeadlineContext(itemsList) {
@@ -373,9 +396,15 @@
 
   // Возвращает дату дедлайна (Date) или null
   function deadlineFor(it, ctx) {
+    if (DEADLINE_EXCEPTIONS[it.id]) return parseDateKey(DEADLINE_EXCEPTIONS[it.id]);
+
     if (it.category === 'mock' || it.category === 'attestation') {
       const key = releaseDateKey(it);
       return key ? addDays(parseDateKey(key), DEADLINE_DAYS[it.category]) : null;
+    }
+    // «Тест №K» по русскому — отдельная плашка расписания, а не тест к занятию
+    if (it.category === 'test' && it.subject === 'rus' && !it.isCompanion && COURSE_INDEX.byId[it.id]) {
+      return addDays(parseDateKey(COURSE_INDEX.byId[it.id].date), DEADLINE_DAYS.rusTest);
     }
     if (!it.isCompanion || !it.parentId) return null;
 
@@ -387,8 +416,9 @@
     if (it.subject === 'chem') {
       if (parent.category !== 'theory' && parent.category !== 'practice') return null;
       const num = itemNumber(parent.title);
-      const theoryKey = (num && COURSE_INDEX.chemTheoryDate[num]) || key;
-      return addDays(parseDateKey(theoryKey), DEADLINE_DAYS.chem);
+      const practiceKey = (num && COURSE_INDEX.chemPracticeDate[num]) || (parent.category === 'practice' ? key : null);
+      if (practiceKey) return addDays(parseDateKey(practiceKey), DEADLINE_DAYS.chemAfterPractice);
+      return addDays(parseDateKey(key), DEADLINE_DAYS.chemAfterTheory);
     }
     if (parent.category === 'review') return addDays(parseDateKey(key), DEADLINE_DAYS.reviewTest);
     if (parent.category === 'theory') {
@@ -396,6 +426,7 @@
       return days ? addDays(parseDateKey(key), days) : null;
     }
     if (parent.category === 'practice') {
+      if (it.subject === 'rus') return essaySunday(parseDateKey(key));
       const days = DEADLINE_DAYS.practiceHw[it.subject];
       return days ? addDays(parseDateKey(key), days) : null;
     }
